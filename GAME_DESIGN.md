@@ -6,6 +6,10 @@ Olympus Brawler is an original 2D platform fighter where Greek gods and heroes c
 
 The visual direction should be inspired by the energy and polish of modern mythic action games, but every character, portrait, animation, UI element, and story beat must be original.
 
+## North Star
+
+Build an original Greek-myth platform fighter with painterly, high-drama art direction inspired by games like *Hades*, while staying legally distinct through original gods, heroes, arenas, UI, animation style, story, and combat feel.
+
 ## Core Modes
 
 - Story Mode: A sequence of trials across Olympus, the Underworld, and Poseidon's Temple. Dialogue frames set stakes before battles, then victories unlock the next divine challenge.
@@ -38,6 +42,21 @@ The visual direction should be inspired by the energy and polish of modern mythi
 - Move toward high-resolution painterly sprites or layered skeletal animation.
 - Store source art outside runtime folders; export clean PNG frames or texture atlases into `public/assets`.
 - Prefer texture atlases once animations become large enough to affect loading or draw calls.
+
+## Visual Bible Targets
+
+- Painterly mythic style with bold silhouettes and dramatic lighting.
+- Each fighter needs idle, run, jump, fall, hurt, KO, quick, heavy, special, and ultimate animation coverage.
+- Each fighter needs a portrait, select icon, and story bust.
+- Each stage needs parallax background layers, readable foreground platforms, a hazard or interaction idea, and a clear mood palette.
+
+## Development Roadmap
+
+- Phase 1: Foundation. Keep GitHub pushes working, maintain the Vite + TypeScript + Phaser structure, keep combat/input/AI/stage/UI/story systems split, and protect the project with Vitest plus Playwright smoke tests.
+- Phase 2: Playable Core. Polish the Zeus vs Athena Mount Olympus slice across Story, PvC, and local PvP until movement, attacks, shield, dodge, knockback, ring-out, pause, rematch, and menus feel fun with plain numbers.
+- Phase 3: Art Direction. Lock the visual bible before expanding expensive production art.
+- Phase 4: Story Mode. Build a fight ladder with dialogue, unlocks, lightweight boons, save progress, and a first arc where a mortal champion enters Zeus's divine trial before Hades disrupts the tournament.
+- Phase 5: Full Roster. Add fighters in waves only after core combat feels good.
 
 ## Definition Of Awesome
 

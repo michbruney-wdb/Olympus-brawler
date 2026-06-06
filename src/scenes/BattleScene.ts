@@ -7,9 +7,14 @@ import {
   rectsOverlap,
   resolveHit
 } from "../systems/combat";
+import {
+  createKeyboardBindings,
+  readKeyboardControls,
+  type BattleControls,
+  type KeyboardBindings
+} from "../systems/controls";
+import { chooseCpuControls } from "../systems/cpu";
 import type { AttackType, FighterConfig, FighterId, GameMode, RectLike, StageId } from "../types";
-
-type KeySet = Record<string, Phaser.Input.Keyboard.Key>;
 
 interface Combatant {
   config: FighterConfig;
@@ -56,8 +61,8 @@ export class BattleScene extends Phaser.Scene {
   private player?: Combatant;
   private opponent?: Combatant;
   private projectiles: Projectile[] = [];
-  private p1Keys?: KeySet;
-  private p2Keys?: KeySet;
+  private p1Keys?: KeyboardBindings;
+  private p2Keys?: KeyboardBindings;
   private pauseKey?: Phaser.Input.Keyboard.Key;
   private enterKey?: Phaser.Input.Keyboard.Key;
   private rematchKey?: Phaser.Input.Keyboard.Key;
@@ -78,6 +83,7 @@ export class BattleScene extends Phaser.Scene {
     const opponentFighter = (this.registry.get("opponentFighter") as FighterId | undefined) ?? "athena";
 
     this.physics.world.gravity.y = 1450;
+    this.physics.resume();
     this.projectiles = [];
     this.winner = undefined;
     this.paused = false;
@@ -99,23 +105,31 @@ export class BattleScene extends Phaser.Scene {
   update(): void {
     if (!this.player || !this.opponent || !this.p1Keys || !this.p2Keys) return;
 
-    if (this.pauseKey && Phaser.Input.Keyboard.JustDown(this.pauseKey) && !this.gameOver) {
-      this.togglePause();
+    if (this.paused) {
+      if (this.pauseKey && Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
+        this.togglePause();
+      } else {
+        this.handlePauseMenuInput();
+      }
+      return;
     }
 
-    if (this.paused) return;
+    if (this.pauseKey && Phaser.Input.Keyboard.JustDown(this.pauseKey) && !this.gameOver) {
+      this.togglePause();
+      return;
+    }
 
     if (this.gameOver) {
       this.handleGameOverInput();
       return;
     }
 
-    this.updateCombatant(this.player, this.opponent, this.p1Keys);
+    this.updateCombatant(this.player, this.opponent, readKeyboardControls(this.p1Keys));
 
     if (this.opponent.isCpu) {
-      this.updateCpu(this.opponent, this.player);
+      this.updateCombatant(this.opponent, this.player, this.readCpuControls(this.opponent, this.player));
     } else {
-      this.updateCombatant(this.opponent, this.player, this.p2Keys);
+      this.updateCombatant(this.opponent, this.player, readKeyboardControls(this.p2Keys));
     }
 
     this.updateProjectiles();
@@ -126,29 +140,8 @@ export class BattleScene extends Phaser.Scene {
     const keyboard = this.input.keyboard;
     if (!keyboard) return;
 
-    this.p1Keys = keyboard.addKeys({
-      left: Phaser.Input.Keyboard.KeyCodes.A,
-      right: Phaser.Input.Keyboard.KeyCodes.D,
-      jump: Phaser.Input.Keyboard.KeyCodes.W,
-      quick: Phaser.Input.Keyboard.KeyCodes.F,
-      heavy: Phaser.Input.Keyboard.KeyCodes.G,
-      special: Phaser.Input.Keyboard.KeyCodes.H,
-      ultimate: Phaser.Input.Keyboard.KeyCodes.J,
-      shield: Phaser.Input.Keyboard.KeyCodes.K,
-      dash: Phaser.Input.Keyboard.KeyCodes.L
-    }) as KeySet;
-
-    this.p2Keys = keyboard.addKeys({
-      left: Phaser.Input.Keyboard.KeyCodes.LEFT,
-      right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
-      jump: Phaser.Input.Keyboard.KeyCodes.UP,
-      quick: Phaser.Input.Keyboard.KeyCodes.N,
-      heavy: Phaser.Input.Keyboard.KeyCodes.M,
-      special: Phaser.Input.Keyboard.KeyCodes.COMMA,
-      ultimate: Phaser.Input.Keyboard.KeyCodes.PERIOD,
-      shield: Phaser.Input.Keyboard.KeyCodes.FORWARD_SLASH,
-      dash: Phaser.Input.Keyboard.KeyCodes.SHIFT
-    }) as KeySet;
+    this.p1Keys = createKeyboardBindings(keyboard, 1);
+    this.p2Keys = createKeyboardBindings(keyboard, 2);
 
     this.pauseKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.enterKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
@@ -231,7 +224,7 @@ export class BattleScene extends Phaser.Scene {
     };
   }
 
-  private updateCombatant(fighter: Combatant, enemy: Combatant, keys: KeySet): void {
+  private updateCombatant(fighter: Combatant, enemy: Combatant, controls: BattleControls): void {
     const body = fighter.sprite.body as Phaser.Physics.Arcade.Body;
     fighter.label.setPosition(fighter.sprite.x, fighter.sprite.y - 92);
 
@@ -243,7 +236,7 @@ export class BattleScene extends Phaser.Scene {
     fighter.invuln = Math.max(0, fighter.invuln - 1);
     fighter.stun = Math.max(0, fighter.stun - 1);
 
-    fighter.shielding = keys.shield.isDown && fighter.shield > 0 && fighter.stun === 0;
+    fighter.shielding = controls.shieldHeld && fighter.shield > 0 && fighter.stun === 0;
 
     if (fighter.shielding) {
       fighter.shield = Math.max(0, fighter.shield - 0.42);
@@ -253,28 +246,26 @@ export class BattleScene extends Phaser.Scene {
     }
 
     if (fighter.stun === 0 && !fighter.shielding) {
-      const direction = Number(keys.right.isDown) - Number(keys.left.isDown);
+      const direction = controls.direction;
+      fighter.facing = controls.facing ?? fighter.facing;
 
       if (direction !== 0) {
-        fighter.facing = direction > 0 ? 1 : -1;
+        fighter.facing = controls.facing ?? (direction > 0 ? 1 : -1);
         body.setVelocityX(Phaser.Math.Clamp(body.velocity.x + direction * fighter.config.speed * 0.08, -fighter.config.speed, fighter.config.speed));
       } else if (body.blocked.down) {
         body.setVelocityX(body.velocity.x * 0.82);
       }
 
-      if (Phaser.Input.Keyboard.JustDown(keys.jump) && fighter.jumpsLeft > 0) {
+      if (controls.jumpPressed && fighter.jumpsLeft > 0) {
         body.setVelocityY(-fighter.config.jump);
         fighter.jumpsLeft -= 1;
       }
 
-      if (Phaser.Input.Keyboard.JustDown(keys.dash)) {
+      if (controls.dashPressed) {
         this.dash(fighter);
       }
 
-      if (Phaser.Input.Keyboard.JustDown(keys.quick)) this.startAttack(fighter, "quick");
-      if (Phaser.Input.Keyboard.JustDown(keys.heavy)) this.startAttack(fighter, "heavy");
-      if (Phaser.Input.Keyboard.JustDown(keys.special)) this.startAttack(fighter, "special");
-      if (Phaser.Input.Keyboard.JustDown(keys.ultimate)) this.startAttack(fighter, "ultimate");
+      if (controls.attackPressed) this.startAttack(fighter, controls.attackPressed);
     }
 
     if (fighter.attack !== "idle") {
@@ -291,62 +282,21 @@ export class BattleScene extends Phaser.Scene {
     this.checkRingOut(fighter);
   }
 
-  private updateCpu(fighter: Combatant, enemy: Combatant): void {
+  private readCpuControls(fighter: Combatant, enemy: Combatant): BattleControls {
     const body = fighter.sprite.body as Phaser.Physics.Arcade.Body;
-    const distance = enemy.sprite.x - fighter.sprite.x;
-    const verticalDistance = enemy.sprite.y - fighter.sprite.y;
-    const absDistance = Math.abs(distance);
-
-    Object.keys(fighter.cooldowns).forEach((key) => {
-      const cooldown = key as keyof Combatant["cooldowns"];
-      fighter.cooldowns[cooldown] = Math.max(0, fighter.cooldowns[cooldown] - 1);
+    return chooseCpuControls({
+      selfX: fighter.sprite.x,
+      selfY: fighter.sprite.y,
+      enemyX: enemy.sprite.x,
+      enemyY: enemy.sprite.y,
+      onGround: body.blocked.down,
+      arenaLeft: ARENA.x,
+      arenaRight: ARENA.x + ARENA.w,
+      shield: fighter.shield,
+      ultMeter: fighter.ultMeter,
+      enemyAttack: enemy.attack,
+      cooldowns: fighter.cooldowns
     });
-
-    fighter.invuln = Math.max(0, fighter.invuln - 1);
-    fighter.stun = Math.max(0, fighter.stun - 1);
-    fighter.facing = distance >= 0 ? 1 : -1;
-    fighter.shielding = false;
-
-    if (fighter.stun === 0) {
-      if (fighter.sprite.x < ARENA.x + 60) body.setVelocityX(fighter.config.speed * 0.72);
-      else if (fighter.sprite.x > ARENA.x + ARENA.w - 60) body.setVelocityX(-fighter.config.speed * 0.72);
-      else if (absDistance > 92) body.setVelocityX(Math.sign(distance) * fighter.config.speed * 0.62);
-      else body.setVelocityX(-Math.sign(distance) * fighter.config.speed * 0.28);
-
-      if (body.blocked.down && (verticalDistance < -74 || Math.random() < 0.006)) {
-        body.setVelocityY(-fighter.config.jump);
-        fighter.jumpsLeft = Math.max(0, fighter.jumpsLeft - 1);
-      }
-
-      if (absDistance < 82 && Math.abs(verticalDistance) < 75) {
-        if (fighter.cooldowns.quick === 0 && Math.random() < 0.05) this.startAttack(fighter, "quick");
-        if (fighter.cooldowns.heavy === 0 && Math.random() < 0.018) this.startAttack(fighter, "heavy");
-      } else if (absDistance < 330 && fighter.cooldowns.special === 0 && Math.random() < 0.02) {
-        this.startAttack(fighter, "special");
-      }
-
-      if (fighter.ultMeter >= 100 && fighter.cooldowns.ultimate === 0 && absDistance < 210 && Math.random() < 0.018) {
-        this.startAttack(fighter, "ultimate");
-      }
-
-      if (enemy.attack !== "idle" && absDistance < 92 && fighter.shield > 25 && Math.random() < 0.05) {
-        fighter.shielding = true;
-      }
-    }
-
-    if (fighter.attack !== "idle") {
-      fighter.attackTimer -= 1;
-      this.handleMelee(fighter, enemy);
-
-      if (fighter.attackTimer <= 0) {
-        fighter.attack = "idle";
-      }
-    }
-
-    this.updateAnimation(fighter);
-    this.updateShieldVisual(fighter);
-    this.checkRingOut(fighter);
-    fighter.label.setPosition(fighter.sprite.x, fighter.sprite.y - 92);
   }
 
   private startAttack(fighter: Combatant, attack: AttackType): void {
@@ -556,7 +506,7 @@ export class BattleScene extends Phaser.Scene {
     );
     this.overlay.add(
       this.add
-        .text(width / 2, height / 2 + 22, "R: rematch  |  Enter: mode select", {
+        .text(width / 2, height / 2 + 22, `R: rematch  |  Enter: ${this.storyWinContinues() ? "continue story" : "mode select"}`, {
           fontFamily: "Arial, sans-serif",
           fontSize: "22px",
           color: "#f7efe1"
@@ -567,17 +517,21 @@ export class BattleScene extends Phaser.Scene {
 
   private handleGameOverInput(): void {
     if (this.rematchKey && Phaser.Input.Keyboard.JustDown(this.rematchKey)) {
-      this.physics.resume();
-      this.scene.restart();
+      this.restartMatch();
     }
 
     if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
-      this.physics.resume();
-      if (this.mode === "story" && this.winner === this.player) {
-        this.scene.start("StoryScene", { afterBattle: true });
-      } else {
-        this.scene.start("ModeSelectScene");
-      }
+      this.advanceAfterMatch();
+    }
+  }
+
+  private handlePauseMenuInput(): void {
+    if (this.rematchKey && Phaser.Input.Keyboard.JustDown(this.rematchKey)) {
+      this.restartMatch();
+    }
+
+    if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+      this.returnToModeSelect();
     }
   }
 
@@ -635,7 +589,7 @@ export class BattleScene extends Phaser.Scene {
       this.overlay.add(this.add.rectangle(width / 2, height / 2, width, height, 0x050713, 0.62));
       this.overlay.add(
         this.add
-          .text(width / 2, height / 2, "PAUSED\nPress P to resume", {
+          .text(width / 2, height / 2, "PAUSED\nP: resume   R: rematch   Enter: mode select", {
             align: "center",
             fontFamily: "Georgia, serif",
             fontSize: "44px",
@@ -648,6 +602,31 @@ export class BattleScene extends Phaser.Scene {
       this.overlay?.destroy();
       this.overlay = undefined;
     }
+  }
+
+  private restartMatch(): void {
+    this.physics.resume();
+    this.scene.restart();
+  }
+
+  private returnToModeSelect(): void {
+    this.physics.resume();
+    this.scene.start("ModeSelectScene");
+  }
+
+  private advanceAfterMatch(): void {
+    this.physics.resume();
+
+    if (this.storyWinContinues()) {
+      this.scene.start("StoryScene", { afterBattle: true });
+      return;
+    }
+
+    this.scene.start("ModeSelectScene");
+  }
+
+  private storyWinContinues(): boolean {
+    return this.mode === "story" && this.winner === this.player;
   }
 
   private burst(x: number, y: number, color: number, count: number): void {
