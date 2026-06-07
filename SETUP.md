@@ -61,6 +61,14 @@
    npm run dev
    ```
 
+   On macOS, you can also double-click `Play Olympus Brawler.command` in Finder. It starts the local Vite server and opens the browser automatically.
+
+   Opening `index.html` directly with a `file://` URL is not recommended because the game uses JavaScript modules and runtime asset loading. Use the launcher or the local URL instead:
+
+   ```text
+   http://127.0.0.1:5173/
+   ```
+
 6. Run checks:
 
    ```bash
