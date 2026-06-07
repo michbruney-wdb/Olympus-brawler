@@ -589,10 +589,10 @@ export class BattleScene extends Phaser.Scene {
       this.overlay.add(this.add.rectangle(width / 2, height / 2, width, height, 0x050713, 0.62));
       this.overlay.add(
         this.add
-          .text(width / 2, height / 2, "PAUSED\nP: resume   R: rematch   Enter: mode select", {
+          .text(width / 2, height / 2, "PAUSED\nP: resume   R: rematch   Enter: mode select\nControls are on the main menu", {
             align: "center",
             fontFamily: "Georgia, serif",
-            fontSize: "44px",
+            fontSize: "38px",
             color: "#f0d48a"
           })
           .setOrigin(0.5)

@@ -11,6 +11,9 @@ test("loads the Olympus Brawler shell without console errors", async ({ page }) 
   await expect(page.locator("canvas")).toBeVisible();
   await expect(page.locator("canvas")).toHaveCount(1);
 
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
   await page.keyboard.press("Enter");
   await page.keyboard.press("Enter");
   await page.keyboard.press("Enter");

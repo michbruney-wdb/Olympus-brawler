@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import "./styles.css";
 import { BattleScene } from "./scenes/BattleScene";
+import { ControlsScene } from "./scenes/ControlsScene";
 import { FighterSelectScene } from "./scenes/FighterSelectScene";
 import { MainMenuScene } from "./scenes/MainMenuScene";
 import { ModeSelectScene } from "./scenes/ModeSelectScene";
@@ -29,6 +30,7 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [
     PreloadScene,
     MainMenuScene,
+    ControlsScene,
     ModeSelectScene,
     FighterSelectScene,
     StageSelectScene,
