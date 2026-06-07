@@ -19,6 +19,7 @@ import type { AttackType, FighterConfig, FighterId, GameMode, RectLike, StageId 
 interface Combatant {
   config: FighterConfig;
   sprite: Phaser.Physics.Arcade.Sprite;
+  shadow: Phaser.GameObjects.Ellipse;
   label: Phaser.GameObjects.Text;
   playerNumber: 1 | 2;
   isCpu: boolean;
@@ -47,6 +48,15 @@ interface Projectile {
   ultimate: boolean;
 }
 
+interface HudPanel {
+  container: Phaser.GameObjects.Container;
+  nameText: Phaser.GameObjects.Text;
+  damageText: Phaser.GameObjects.Text;
+  metaText: Phaser.GameObjects.Text;
+  shieldFill: Phaser.GameObjects.Rectangle;
+  ultFill: Phaser.GameObjects.Rectangle;
+}
+
 const ARENA = { x: 220, y: 522, w: 840, h: 28 };
 const PLATFORMS = [
   { x: 280, y: 382, w: 180, h: 18 },
@@ -69,7 +79,7 @@ export class BattleScene extends Phaser.Scene {
   private winner?: Combatant;
   private paused = false;
   private gameOver = false;
-  private hud: Phaser.GameObjects.Text[] = [];
+  private hudPanels: HudPanel[] = [];
   private overlay?: Phaser.GameObjects.Container;
 
   constructor() {
@@ -152,8 +162,8 @@ export class BattleScene extends Phaser.Scene {
     const stage = getStage(this.stageId);
     const { width, height } = this.scale;
 
-    this.add.image(width / 2, height / 2, `stage-${stage.id}`).setDisplaySize(width, height);
-    this.add.rectangle(width / 2, height / 2, width, height, 0x040712, 0.08);
+    this.add.image(width / 2, height / 2, `stage-${stage.id}`).setDisplaySize(width, height).setDepth(-30);
+    this.createStageAtmosphere(stage.accent);
 
     this.platforms = this.physics.add.staticGroup();
     this.addPlatform(ARENA.x, ARENA.y, ARENA.w, ARENA.h, stage.platform, true);
@@ -162,9 +172,45 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
+  private createStageAtmosphere(accent: number): void {
+    const { width, height } = this.scale;
+    const beams = this.add.graphics().setDepth(-20);
+
+    this.add.rectangle(width / 2, height / 2, width, height, 0x040712, 0.18).setDepth(-26);
+    this.add.rectangle(width / 2, 84, width, 168, accent, 0.08).setDepth(-24).setBlendMode(Phaser.BlendModes.ADD);
+    this.add.rectangle(width / 2, height - 52, width, 104, 0x02040a, 0.42).setDepth(-4);
+
+    beams.fillStyle(accent, 0.09);
+    beams.fillTriangle(110, 0, 245, 0, 390, height);
+    beams.fillTriangle(width - 120, 0, width - 282, 0, width - 430, height);
+    beams.fillStyle(0xffffff, 0.035);
+    beams.fillTriangle(width / 2 - 75, 0, width / 2 + 75, 0, width / 2 + 10, height);
+
+    const horizon = this.add.rectangle(width / 2, 454, width, 72, 0xffffff, 0.055).setDepth(-12);
+    horizon.setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: horizon,
+      alpha: { from: 0.035, to: 0.075 },
+      duration: 2600,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
+  }
+
   private addPlatform(x: number, y: number, w: number, h: number, color: number, main: boolean): void {
-    const platform = this.add.rectangle(x + w / 2, y + h / 2, w, h, color, main ? 0.95 : 0.88);
-    platform.setStrokeStyle(main ? 3 : 2, 0xf7efe1, main ? 0.78 : 0.45);
+    const centerX = x + w / 2;
+    const centerY = y + h / 2;
+    const shadow = this.add.rectangle(centerX, centerY + 13, w + 18, h + 18, 0x02040a, main ? 0.48 : 0.34);
+    shadow.setDepth(2);
+
+    const platform = this.add.rectangle(centerX, centerY, w, h, color, main ? 0.94 : 0.86);
+    platform.setDepth(4);
+    platform.setStrokeStyle(main ? 3 : 2, 0xf7efe1, main ? 0.86 : 0.5);
+
+    const highlight = this.add.rectangle(centerX, y + 4, w - 10, 4, 0xffffff, main ? 0.36 : 0.22);
+    highlight.setDepth(5);
     this.physics.add.existing(platform, true);
     this.platforms!.add(platform);
   }
@@ -176,10 +222,12 @@ export class BattleScene extends Phaser.Scene {
     playerNumber: 1 | 2,
     isCpu: boolean
   ): Combatant {
+    const shadow = this.add.ellipse(x, y + 66, 94, 20, 0x02040a, 0.48).setDepth(7);
     const sprite = this.physics.add.sprite(x, y, `${config.id}-idle-1`);
     sprite.setDisplaySize(120, 140);
     sprite.setCollideWorldBounds(false);
     sprite.setMaxVelocity(620, 980);
+    sprite.setDepth(10);
     sprite.play(`${config.id}-idle`);
 
     const body = sprite.body as Phaser.Physics.Arcade.Body;
@@ -194,11 +242,13 @@ export class BattleScene extends Phaser.Scene {
         backgroundColor: "rgba(8, 10, 18, 0.62)",
         padding: { x: 8, y: 4 }
       })
+      .setDepth(22)
       .setOrigin(0.5);
 
     return {
       config,
       sprite,
+      shadow,
       label,
       playerNumber,
       isCpu,
@@ -278,6 +328,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.updateAnimation(fighter);
+    this.updateFighterVisuals(fighter);
     this.updateShieldVisual(fighter);
     this.checkRingOut(fighter);
   }
@@ -318,6 +369,7 @@ export class BattleScene extends Phaser.Scene {
 
     if (attack === "ultimate") {
       fighter.ultMeter = 0;
+      this.screenFlash(fighter.config.accent, 0.16);
       this.cameras.main.shake(160, 0.006);
     }
   }
@@ -348,6 +400,7 @@ export class BattleScene extends Phaser.Scene {
     if (defender.shielding && defender.shield > 0) {
       defender.shield = applyShieldDamage(defender.shield, damage);
       this.burst(defender.sprite.x, defender.sprite.y - 20, 0x9fd7ff, 12);
+      this.impactFlash(defender.sprite.x, defender.sprite.y - 24, 0x9fd7ff, false);
 
       if (defender.shield === 0) {
         defender.stun = 70;
@@ -373,6 +426,7 @@ export class BattleScene extends Phaser.Scene {
     defender.ultMeter = Math.min(100, defender.ultMeter + result.defenderMeter);
 
     this.burst(defender.sprite.x, defender.sprite.y - 28, attacker.config.accent, damage >= 18 ? 22 : 14);
+    this.impactFlash(defender.sprite.x, defender.sprite.y - 30, attacker.config.accent, damage >= 18);
     this.cameras.main.shake(damage >= 18 ? 130 : 80, damage >= 18 ? 0.007 : 0.004);
   }
 
@@ -380,6 +434,8 @@ export class BattleScene extends Phaser.Scene {
     const radius = ultimate ? 20 : owner.config.projectile === "spear" ? 9 : 13;
     const body = this.add.circle(owner.sprite.x + owner.facing * 72, owner.sprite.y - 36, radius, owner.config.accent, 0.96);
     body.setStrokeStyle(ultimate ? 3 : 1, 0xffffff, ultimate ? 0.92 : 0.35);
+    body.setDepth(14);
+    body.setBlendMode(Phaser.BlendModes.ADD);
 
     this.projectiles.push({
       owner,
@@ -401,6 +457,11 @@ export class BattleScene extends Phaser.Scene {
       const projectile = this.projectiles[i];
       projectile.body.x += (projectile.velocityX * this.game.loop.delta) / 1000;
       projectile.life -= 1;
+      projectile.body.setScale(1 + Math.sin(projectile.life * 0.32) * 0.08);
+
+      if (projectile.life % 3 === 0) {
+        this.projectileTrail(projectile);
+      }
 
       const target = fighters.find((fighter) => fighter !== projectile.owner);
       if (target && rectsOverlap(this.projectileBounds(projectile), this.boundsOf(target))) {
@@ -424,6 +485,7 @@ export class BattleScene extends Phaser.Scene {
     body.setVelocityX(fighter.facing * 680);
     fighter.cooldowns.dash = 42;
     fighter.invuln = Math.max(fighter.invuln, 9);
+    this.dashTrail(fighter);
     this.burst(fighter.sprite.x, fighter.sprite.y, fighter.config.accent, 8);
   }
 
@@ -441,6 +503,45 @@ export class BattleScene extends Phaser.Scene {
     else sprite.play(`${fighter.config.id}-idle`, true);
   }
 
+  private updateFighterVisuals(fighter: Combatant): void {
+    const body = fighter.sprite.body as Phaser.Physics.Arcade.Body;
+    const airborne = !body.blocked.down;
+    const shadowScale = airborne ? 0.7 : 1;
+
+    fighter.shadow.setPosition(fighter.sprite.x, fighter.sprite.y + 66);
+    fighter.shadow.setScale(shadowScale, airborne ? 0.7 : 1);
+    fighter.shadow.setAlpha(fighter.sprite.alpha * (airborne ? 0.28 : 0.48));
+    fighter.label.setDepth(22);
+
+    if (fighter.stun > 0) {
+      fighter.sprite.setTint(0xffd2b8);
+    } else if (fighter.attack !== "idle") {
+      fighter.sprite.setTint(fighter.config.accent);
+    } else {
+      fighter.sprite.clearTint();
+    }
+
+    this.updateUltimateAura(fighter);
+  }
+
+  private updateUltimateAura(fighter: Combatant): void {
+    const existing = fighter.sprite.getData("ultAura") as Phaser.GameObjects.Arc | undefined;
+
+    if (fighter.ultMeter >= 100) {
+      const aura =
+        existing ??
+        this.add.circle(fighter.sprite.x, fighter.sprite.y - 10, 72).setStrokeStyle(3, fighter.config.accent, 0.58);
+      aura.setPosition(fighter.sprite.x, fighter.sprite.y - 10);
+      aura.setScale(1 + Math.sin(this.time.now / 130) * 0.05);
+      aura.setDepth(8);
+      aura.setVisible(true);
+      aura.setBlendMode(Phaser.BlendModes.ADD);
+      fighter.sprite.setData("ultAura", aura);
+    } else if (existing) {
+      existing.setVisible(false);
+    }
+  }
+
   private updateShieldVisual(fighter: Combatant): void {
     const existing = fighter.sprite.getData("shieldRing") as Phaser.GameObjects.Arc | undefined;
 
@@ -449,6 +550,7 @@ export class BattleScene extends Phaser.Scene {
         existing ??
         this.add.circle(fighter.sprite.x, fighter.sprite.y - 20, 56).setStrokeStyle(4, 0x9fd7ff, 0.82);
       ring.setPosition(fighter.sprite.x, fighter.sprite.y - 20);
+      ring.setDepth(12);
       ring.setVisible(true);
       fighter.sprite.setData("shieldRing", ring);
     } else if (existing) {
@@ -536,9 +638,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private createHud(): void {
-    this.hud = [
-      this.add.text(18, 16, "", this.hudStyle()).setOrigin(0, 0),
-      this.add.text(this.scale.width - 318, 16, "", this.hudStyle()).setOrigin(0, 0)
+    this.hudPanels = [
+      this.createHudPanel(18, 16),
+      this.createHudPanel(this.scale.width - 342, 16)
     ];
     this.updateHud();
   }
@@ -547,13 +649,70 @@ export class BattleScene extends Phaser.Scene {
     if (!this.player || !this.opponent) return;
 
     [this.player, this.opponent].forEach((fighter, index) => {
+      const panel = this.hudPanels[index];
       const label = fighter.isCpu ? "CPU" : fighter.playerNumber === 1 ? "P1" : "P2";
-      this.hud[index].setText(
-        `${fighter.config.name} ${label}\n` +
-          `Damage ${Math.floor(fighter.damage)}%   Lives ${fighter.lives}\n` +
-          `Shield ${Math.floor(fighter.shield)}   Ult ${Math.floor(fighter.ultMeter)}%`
-      );
+      const damage = Math.floor(fighter.damage);
+
+      panel.nameText.setText(`${fighter.config.name} ${label}`);
+      panel.nameText.setColor(fighter.config.portraitColor);
+      panel.damageText.setText(`${damage}%`);
+      panel.damageText.setColor(damage >= 100 ? "#ffb199" : damage >= 60 ? "#ffd28a" : "#f7efe1");
+      panel.metaText.setText(`Lives ${fighter.lives}   Shield ${Math.floor(fighter.shield)}   Ult ${Math.floor(fighter.ultMeter)}%`);
+      this.setHudBar(panel.shieldFill, fighter.shield / 100, 0x9fd7ff);
+      this.setHudBar(panel.ultFill, fighter.ultMeter / 100, fighter.config.accent);
     });
+  }
+
+  private createHudPanel(x: number, y: number): HudPanel {
+    const container = this.add.container(x, y);
+    container.setDepth(80);
+
+    const bg = this.add.rectangle(0, 0, 324, 112, 0x080a12, 0.78).setOrigin(0, 0);
+    bg.setStrokeStyle(2, 0xf0d48a, 0.34);
+
+    const glow = this.add.rectangle(0, 0, 324, 112, 0xf0d48a, 0.05).setOrigin(0, 0);
+    const nameText = this.add.text(16, 13, "", {
+      fontFamily: "Georgia, serif",
+      fontSize: "20px",
+      color: "#f7efe1"
+    });
+    const damageText = this.add.text(246, 12, "", {
+      fontFamily: "Georgia, serif",
+      fontSize: "32px",
+      color: "#f7efe1"
+    });
+    const metaText = this.add.text(16, 50, "", {
+      fontFamily: "Arial, sans-serif",
+      fontSize: "14px",
+      color: "#d7deef"
+    });
+
+    const shieldBack = this.add.rectangle(16, 78, 132, 8, 0x1b2133, 0.95).setOrigin(0, 0.5);
+    const shieldFill = this.add.rectangle(16, 78, 132, 8, 0x9fd7ff, 0.95).setOrigin(0, 0.5);
+    const ultBack = this.add.rectangle(174, 78, 132, 8, 0x1b2133, 0.95).setOrigin(0, 0.5);
+    const ultFill = this.add.rectangle(174, 78, 132, 8, 0xf0d48a, 0.95).setOrigin(0, 0.5);
+
+    const shieldLabel = this.add.text(16, 91, "SHIELD", {
+      fontFamily: "Arial, sans-serif",
+      fontSize: "10px",
+      color: "#9fd7ff"
+    });
+    const ultLabel = this.add.text(174, 91, "ULTIMATE", {
+      fontFamily: "Arial, sans-serif",
+      fontSize: "10px",
+      color: "#f0d48a"
+    });
+
+    container.add([bg, glow, nameText, damageText, metaText, shieldBack, shieldFill, ultBack, ultFill, shieldLabel, ultLabel]);
+
+    return { container, nameText, damageText, metaText, shieldFill, ultFill };
+  }
+
+  private setHudBar(bar: Phaser.GameObjects.Rectangle, value: number, color: number): void {
+    const width = 132 * Phaser.Math.Clamp(value, 0, 1);
+    bar.setVisible(width > 0);
+    bar.setFillStyle(color, 0.95);
+    bar.setDisplaySize(Math.max(1, width), 8);
   }
 
   private drawModeBanner(): void {
@@ -636,9 +795,96 @@ export class BattleScene extends Phaser.Scene {
     return this.mode === "story" && this.winner === this.player;
   }
 
+  private impactFlash(x: number, y: number, color: number, heavy: boolean): void {
+    const slash = this.add.rectangle(x, y, heavy ? 118 : 74, heavy ? 9 : 6, color, 0.9);
+    slash.setAngle(Phaser.Math.Between(-28, 28));
+    slash.setDepth(30);
+    slash.setBlendMode(Phaser.BlendModes.ADD);
+
+    const ring = this.add.ellipse(x, y, heavy ? 112 : 72, heavy ? 52 : 34);
+    ring.setStrokeStyle(heavy ? 4 : 3, 0xffffff, heavy ? 0.75 : 0.48);
+    ring.setDepth(29);
+    ring.setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: [slash, ring],
+      alpha: 0,
+      scaleX: heavy ? 1.65 : 1.35,
+      scaleY: heavy ? 1.4 : 1.25,
+      duration: heavy ? 210 : 150,
+      ease: "Quad.easeOut",
+      onComplete: () => {
+        slash.destroy();
+        ring.destroy();
+      }
+    });
+  }
+
+  private projectileTrail(projectile: Projectile): void {
+    const trail = this.add.rectangle(
+      projectile.body.x - Math.sign(projectile.velocityX) * 26,
+      projectile.body.y,
+      projectile.ultimate ? 72 : 44,
+      projectile.ultimate ? 7 : 4,
+      projectile.owner.config.accent,
+      projectile.ultimate ? 0.38 : 0.28
+    );
+    trail.setAngle(projectile.velocityX > 0 ? 0 : 180);
+    trail.setDepth(13);
+    trail.setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: trail,
+      alpha: 0,
+      scaleX: 0.25,
+      duration: 180,
+      ease: "Sine.easeOut",
+      onComplete: () => trail.destroy()
+    });
+  }
+
+  private dashTrail(fighter: Combatant): void {
+    const trail = this.add.rectangle(
+      fighter.sprite.x - fighter.facing * 42,
+      fighter.sprite.y - 6,
+      92,
+      42,
+      fighter.config.accent,
+      0.24
+    );
+    trail.setDepth(9);
+    trail.setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: trail,
+      alpha: 0,
+      scaleX: 1.45,
+      duration: 220,
+      ease: "Quad.easeOut",
+      onComplete: () => trail.destroy()
+    });
+  }
+
+  private screenFlash(color: number, alpha: number): void {
+    const { width, height } = this.scale;
+    const flash = this.add.rectangle(width / 2, height / 2, width, height, color, alpha);
+    flash.setDepth(90);
+    flash.setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 260,
+      ease: "Quad.easeOut",
+      onComplete: () => flash.destroy()
+    });
+  }
+
   private burst(x: number, y: number, color: number, count: number): void {
     for (let i = 0; i < count; i += 1) {
       const particle = this.add.circle(x, y, Phaser.Math.Between(2, 5), color, 0.85);
+      particle.setDepth(28);
+      particle.setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({
         targets: particle,
         x: x + Phaser.Math.Between(-80, 80),
@@ -663,16 +909,6 @@ export class BattleScene extends Phaser.Scene {
       y: projectile.body.y - radius,
       w: radius * 2,
       h: radius * 2
-    };
-  }
-
-  private hudStyle(): Phaser.Types.GameObjects.Text.TextStyle {
-    return {
-      fontFamily: "Arial, sans-serif",
-      fontSize: "18px",
-      color: "#f7efe1",
-      backgroundColor: "rgba(8, 10, 18, 0.62)",
-      padding: { x: 12, y: 10 }
     };
   }
 }
