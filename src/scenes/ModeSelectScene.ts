@@ -27,10 +27,8 @@ export class ModeSelectScene extends MenuSceneBase {
       this.registry.set("mode", option.mode);
 
       if (option.mode === "story") {
-        this.registry.set("playerFighter", "zeus");
-        this.registry.set("opponentFighter", "athena");
-        this.registry.set("stage", "olympus");
-        this.scene.start("StoryScene", { afterBattle: false });
+        this.registry.set("storyTrialIndex", 0);
+        this.scene.start("StoryScene", { phase: "intro", trialIndex: 0 });
         return;
       }
 

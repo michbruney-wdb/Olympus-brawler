@@ -1,13 +1,20 @@
 import Phaser from "phaser";
-import { STORY_INTRO_LINES, STORY_WIN_LINES } from "../data/story";
+import { getStage } from "../data/stages";
+import { getStoryTrial, STORY_COMPLETE_LINES, type StoryLine, type StoryTrial } from "../data/story";
+
+type StoryPhase = "intro" | "win" | "complete";
 
 interface StorySceneData {
-  afterBattle?: boolean;
+  phase?: StoryPhase;
+  trialIndex?: number;
 }
 
 export class StoryScene extends Phaser.Scene {
+  private phase: StoryPhase = "intro";
+  private trialIndex = 0;
+  private trial?: StoryTrial;
   private lineIndex = 0;
-  private lines = STORY_INTRO_LINES;
+  private lines: StoryLine[] = [];
   private enter?: Phaser.Input.Keyboard.Key;
   private lineObjects: Phaser.GameObjects.GameObject[] = [];
 
@@ -16,22 +23,35 @@ export class StoryScene extends Phaser.Scene {
   }
 
   init(data: StorySceneData): void {
-    this.lines = data.afterBattle ? STORY_WIN_LINES : STORY_INTRO_LINES;
+    this.phase = data.phase ?? "intro";
+    this.trialIndex = data.trialIndex ?? ((this.registry.get("storyTrialIndex") as number | undefined) ?? 0);
+    this.trial = getStoryTrial(this.trialIndex);
+    this.lines = this.phase === "complete" ? STORY_COMPLETE_LINES : this.getTrialLines();
     this.lineIndex = 0;
   }
 
   create(): void {
     const { width, height } = this.scale;
-    this.add.image(width / 2, height / 2, "stage-olympus").setDisplaySize(width, height);
+    const stage = getStage(this.trial?.stage ?? "olympus");
+
+    this.add.image(width / 2, height / 2, `stage-${stage.id}`).setDisplaySize(width, height);
     this.add.rectangle(width / 2, height / 2, width, height, 0x050713, 0.52);
 
     this.add
-      .text(width / 2, 90, "Story Mode", {
+      .text(width / 2, 78, "Story Mode", {
         fontFamily: "Georgia, serif",
         fontSize: "56px",
         color: "#f0d48a",
         stroke: "#101522",
         strokeThickness: 6
+      })
+      .setOrigin(0.5);
+
+    this.add
+      .text(width / 2, 132, this.titleText(), {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "21px",
+        color: "#f7efe1"
       })
       .setOrigin(0.5);
 
@@ -45,11 +65,54 @@ export class StoryScene extends Phaser.Scene {
     this.lineIndex += 1;
 
     if (this.lineIndex >= this.lines.length) {
-      this.scene.start("BattleScene");
+      this.advanceStory();
       return;
     }
 
     this.drawLine();
+  }
+
+  private getTrialLines(): StoryLine[] {
+    if (!this.trial) return STORY_COMPLETE_LINES;
+    return this.phase === "win" ? this.trial.winLines : this.trial.introLines;
+  }
+
+  private titleText(): string {
+    if (this.phase === "complete") return "First ladder complete";
+    return this.trial?.title ?? "Story ladder complete";
+  }
+
+  private advanceStory(): void {
+    if (this.phase === "complete" || !this.trial) {
+      this.registry.set("storyTrialIndex", 0);
+      this.scene.start("ModeSelectScene");
+      return;
+    }
+
+    if (this.phase === "intro") {
+      this.applyTrialToRegistry(this.trial);
+      this.scene.start("BattleScene");
+      return;
+    }
+
+    const nextTrialIndex = this.trialIndex + 1;
+    this.registry.set("storyTrialIndex", nextTrialIndex);
+
+    if (getStoryTrial(nextTrialIndex)) {
+      this.scene.start("StoryScene", { phase: "intro", trialIndex: nextTrialIndex });
+      return;
+    }
+
+    this.scene.start("StoryScene", { phase: "complete", trialIndex: this.trialIndex });
+  }
+
+  private applyTrialToRegistry(trial: StoryTrial): void {
+    this.registry.set("mode", "story");
+    this.registry.set("storyTrialIndex", this.trialIndex);
+    this.registry.set("storyTrialTitle", trial.title);
+    this.registry.set("playerFighter", trial.playerFighter);
+    this.registry.set("opponentFighter", trial.opponentFighter);
+    this.registry.set("stage", trial.stage);
   }
 
   private drawLine(): void {
@@ -58,13 +121,13 @@ export class StoryScene extends Phaser.Scene {
     this.lineObjects.forEach((item) => item.destroy());
     this.lineObjects = [];
 
-    const panel = this.add.rectangle(width / 2, height - 145, 900, 160, 0x101522, 0.9);
+    const panel = this.add.rectangle(width / 2, height - 145, 930, 166, 0x101522, 0.9);
     panel.setStrokeStyle(3, 0xf0d48a, 0.9);
     this.lineObjects.push(panel);
 
     this.lineObjects.push(
       this.add
-      .text(width / 2 - 410, height - 198, line.speaker, {
+      .text(width / 2 - 425, height - 200, line.speaker, {
         fontFamily: "Georgia, serif",
         fontSize: "28px",
         color: "#f0d48a"
@@ -74,18 +137,18 @@ export class StoryScene extends Phaser.Scene {
 
     this.lineObjects.push(
       this.add
-      .text(width / 2 - 410, height - 146, line.text, {
+      .text(width / 2 - 425, height - 146, line.text, {
         fontFamily: "Arial, sans-serif",
         fontSize: "23px",
         color: "#f7efe1",
-        wordWrap: { width: 820 }
+        wordWrap: { width: 850 }
       })
       .setOrigin(0, 0.5)
     );
 
     this.lineObjects.push(
       this.add
-      .text(width / 2 + 350, height - 82, "Enter", {
+      .text(width / 2 + 362, height - 82, "Enter", {
         fontFamily: "Arial, sans-serif",
         fontSize: "18px",
         color: "#d7deef"

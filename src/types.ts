@@ -1,4 +1,13 @@
-export type FighterId = "zeus" | "athena";
+export type FighterId =
+  | "zeus"
+  | "athena"
+  | "ares"
+  | "poseidon"
+  | "artemis"
+  | "hades"
+  | "heracles"
+  | "achilles"
+  | "odysseus";
 
 export type StageId = "olympus" | "underworld" | "poseidon";
 
@@ -31,7 +40,7 @@ export interface FighterConfig {
   special: number;
   ultimate: number;
   knockback: number;
-  projectile: "bolt" | "spear";
+  projectile: "bolt" | "spear" | "wave" | "arrow" | "shadow" | "rock" | "blade" | "trick";
   storyRole: string;
 }
 

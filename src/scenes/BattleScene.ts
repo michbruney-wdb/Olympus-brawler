@@ -558,7 +558,11 @@ export class BattleScene extends Phaser.Scene {
 
   private drawModeBanner(): void {
     const label =
-      this.mode === "story" ? "Story Trial: Thunder vs Wisdom" : this.mode === "pvp" ? "Local PvP" : "Player vs Computer";
+      this.mode === "story"
+        ? ((this.registry.get("storyTrialTitle") as string | undefined) ?? "Story Trial")
+        : this.mode === "pvp"
+          ? "Local PvP"
+          : "Player vs Computer";
 
     const text = this.add
       .text(this.scale.width / 2, 24, label, {
@@ -618,7 +622,10 @@ export class BattleScene extends Phaser.Scene {
     this.physics.resume();
 
     if (this.storyWinContinues()) {
-      this.scene.start("StoryScene", { afterBattle: true });
+      this.scene.start("StoryScene", {
+        phase: "win",
+        trialIndex: (this.registry.get("storyTrialIndex") as number | undefined) ?? 0
+      });
       return;
     }
 
