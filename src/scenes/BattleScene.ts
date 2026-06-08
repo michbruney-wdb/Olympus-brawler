@@ -14,12 +14,14 @@ import {
   type KeyboardBindings
 } from "../systems/controls";
 import { chooseCpuControls } from "../systems/cpu";
-import type { AttackType, FighterConfig, FighterId, GameMode, RectLike, StageId } from "../types";
+import type { AnimationKey, AttackType, FighterConfig, FighterId, GameMode, RectLike, StageId } from "../types";
 
 interface Combatant {
   config: FighterConfig;
   sprite: Phaser.Physics.Arcade.Sprite;
+  rimSprite: Phaser.GameObjects.Sprite;
   shadow: Phaser.GameObjects.Ellipse;
+  depthShadow: Phaser.GameObjects.Ellipse;
   label: Phaser.GameObjects.Text;
   playerNumber: 1 | 2;
   isCpu: boolean;
@@ -222,12 +224,22 @@ export class BattleScene extends Phaser.Scene {
     playerNumber: 1 | 2,
     isCpu: boolean
   ): Combatant {
-    const shadow = this.add.ellipse(x, y + 66, 94, 20, 0x02040a, 0.48).setDepth(7);
+    const shadow = this.add.ellipse(x, y + 66, 110, 24, 0x02040a, 0.54).setDepth(7);
+    const depthShadow = this.add.ellipse(x - 5, y + 8, 78, 132, 0x02040a, 0.26).setDepth(8);
+    const rimSprite = this.add.sprite(x + 5, y - 2, `${config.id}-idle-1`);
+    rimSprite.setDisplaySize(128, 148);
+    rimSprite.setDepth(9);
+    rimSprite.setTint(config.accent);
+    rimSprite.setAlpha(0.32);
+    rimSprite.setBlendMode(Phaser.BlendModes.ADD);
+    rimSprite.play(`${config.id}-idle`);
+
     const sprite = this.physics.add.sprite(x, y, `${config.id}-idle-1`);
     sprite.setDisplaySize(120, 140);
     sprite.setCollideWorldBounds(false);
     sprite.setMaxVelocity(620, 980);
     sprite.setDepth(10);
+    this.applyAvatarRender(sprite, config, 1);
     sprite.play(`${config.id}-idle`);
 
     const body = sprite.body as Phaser.Physics.Arcade.Body;
@@ -248,7 +260,9 @@ export class BattleScene extends Phaser.Scene {
     return {
       config,
       sprite,
+      rimSprite,
       shadow,
+      depthShadow,
       label,
       playerNumber,
       isCpu,
@@ -361,7 +375,7 @@ export class BattleScene extends Phaser.Scene {
     fighter.cooldowns[attack] = attack === "quick" ? 18 : attack === "heavy" ? 38 : attack === "special" ? 58 : 230;
 
     const animation = attack === "ultimate" ? "ult" : attack;
-    fighter.sprite.play(`${fighter.config.id}-${animation}`, true);
+    this.playFighterAnimation(fighter, animation);
 
     if (attack === "special" || attack === "ultimate") {
       this.spawnProjectile(fighter, attack === "ultimate");
@@ -497,20 +511,36 @@ export class BattleScene extends Phaser.Scene {
 
     if (fighter.attack !== "idle") return;
 
-    if (fighter.stun > 0) sprite.play(`${fighter.config.id}-hurt`, true);
-    else if (!body.blocked.down) sprite.play(`${fighter.config.id}-jump`, true);
-    else if (Math.abs(body.velocity.x) > 35) sprite.play(`${fighter.config.id}-run`, true);
-    else sprite.play(`${fighter.config.id}-idle`, true);
+    if (fighter.stun > 0) this.playFighterAnimation(fighter, "hurt");
+    else if (!body.blocked.down) this.playFighterAnimation(fighter, "jump");
+    else if (Math.abs(body.velocity.x) > 35) this.playFighterAnimation(fighter, "run");
+    else this.playFighterAnimation(fighter, "idle");
+  }
+
+  private playFighterAnimation(fighter: Combatant, animation: AnimationKey): void {
+    const key = `${fighter.config.id}-${animation}`;
+    fighter.sprite.play(key, true);
+    fighter.rimSprite.play(key, true);
   }
 
   private updateFighterVisuals(fighter: Combatant): void {
     const body = fighter.sprite.body as Phaser.Physics.Arcade.Body;
     const airborne = !body.blocked.down;
     const shadowScale = airborne ? 0.7 : 1;
+    const rimOffset = fighter.facing === 1 ? 5 : -5;
 
     fighter.shadow.setPosition(fighter.sprite.x, fighter.sprite.y + 66);
     fighter.shadow.setScale(shadowScale, airborne ? 0.7 : 1);
     fighter.shadow.setAlpha(fighter.sprite.alpha * (airborne ? 0.28 : 0.48));
+    fighter.depthShadow.setPosition(fighter.sprite.x - fighter.facing * 6, fighter.sprite.y + 8);
+    fighter.depthShadow.setScale(airborne ? 0.82 : 1, airborne ? 0.88 : 1);
+    fighter.depthShadow.setAlpha(fighter.sprite.alpha * (airborne ? 0.14 : 0.25));
+    fighter.rimSprite.setPosition(fighter.sprite.x + rimOffset, fighter.sprite.y - 2);
+    fighter.rimSprite.setFlipX(fighter.facing === -1);
+    fighter.rimSprite.setAlpha(fighter.sprite.alpha * (fighter.ultMeter >= 100 ? 0.48 : 0.28));
+    const rimPulse = 1 + Math.sin(this.time.now / 180) * (fighter.ultMeter >= 100 ? 0.025 : 0.01);
+    fighter.rimSprite.setDisplaySize(128 * rimPulse, 148 * rimPulse);
+    fighter.rimSprite.setTint(fighter.config.accent);
     fighter.label.setDepth(22);
 
     if (fighter.stun > 0) {
@@ -518,10 +548,22 @@ export class BattleScene extends Phaser.Scene {
     } else if (fighter.attack !== "idle") {
       fighter.sprite.setTint(fighter.config.accent);
     } else {
-      fighter.sprite.clearTint();
+      this.applyAvatarRender(fighter.sprite, fighter.config, fighter.playerNumber);
     }
 
     this.updateUltimateAura(fighter);
+  }
+
+  private applyAvatarRender(
+    sprite: Phaser.GameObjects.Components.Tint,
+    config: FighterConfig,
+    playerNumber: 1 | 2
+  ): void {
+    const keyLight = playerNumber === 1 ? 0xfff3d6 : 0xe8f1ff;
+    const rimLight = playerNumber === 1 ? config.color : config.accent;
+    const coreShadow = 0x9a8f82;
+    const contactShadow = 0x675f62;
+    sprite.setTint(keyLight, rimLight, coreShadow, contactShadow);
   }
 
   private updateUltimateAura(fighter: Combatant): void {

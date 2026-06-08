@@ -1,3 +1,4 @@
+import Phaser from "phaser";
 import { FIGHTER_IDS, getFighter } from "../data/fighters";
 import type { FighterId, GameMode } from "../types";
 import { MenuSceneBase } from "./MenuSceneBase";

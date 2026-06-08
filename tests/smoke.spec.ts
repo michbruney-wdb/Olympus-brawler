@@ -15,6 +15,7 @@ test("loads the Olympus Brawler shell without console errors", async ({ page }) 
   await page.keyboard.press("Enter");
   await page.keyboard.press("Escape");
   await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await page.keyboard.press("Enter");
   await page.keyboard.press("Enter");

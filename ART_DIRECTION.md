@@ -15,6 +15,8 @@ The style may share the broad category of modern mythic action art, but it must 
 - Readability: attacks must read at gameplay speed before detail is considered successful.
 - Originality: no traced, copied, or style-matched production assets from other games.
 
+For realistic dimensional avatars, follow `AVATAR_PRODUCTION.md`: model, rig, animate, and orthographically render 3D fighters into game-ready 2D sprite frames.
+
 ## Fighter Asset Set
 
 Each fighter needs these game-ready exports:
