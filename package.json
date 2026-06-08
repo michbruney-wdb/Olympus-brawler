@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "check": "npm run build && npm run test"
+    "check": "npm run build && npm run test",
+    "asset:audit": "node scripts/audit-assets.mjs"
   },
   "dependencies": {
     "phaser": "^4.1.0"

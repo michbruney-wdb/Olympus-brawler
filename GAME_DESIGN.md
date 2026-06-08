@@ -42,6 +42,7 @@ Build an original Greek-myth platform fighter with painterly, high-drama art dir
 - Move toward high-resolution painterly sprites or layered skeletal animation.
 - Store source art outside runtime folders; export clean PNG frames or texture atlases into `public/assets`.
 - Prefer texture atlases once animations become large enough to affect loading or draw calls.
+- Follow `ART_DIRECTION.md` and `ASSET_PIPELINE.md` before replacing prototype art with production assets.
 
 ## Visual Bible Targets
 

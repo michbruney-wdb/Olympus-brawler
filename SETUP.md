@@ -75,12 +75,14 @@
    npm run build
    npm run test
    npm run e2e
+   npm run asset:audit
    ```
 
 ## Recommended Asset Tools
 
 - Aseprite: paid sprite animation tool for hand-authored fighter frames, frame tags, onion skinning, and palettes.
 - Pixelorama: free/open-source pixel-art alternative.
+- Krita: free/open-source painterly source-art tool for high-resolution character and stage work.
 - Tiled: stage layout authoring if arenas move from hard-coded platforms to data files.
 - Phaser Texture Atlas Creator: pack fighter frames into atlases once the asset count grows.
 
@@ -88,5 +90,4 @@
 
 - Browser plugin: use after visual/frontend changes to check canvas rendering and console errors.
 - GitHub plugin: use after `gh` authentication is working.
-- imagegen skill: use for concept art, placeholder backgrounds, portraits, and sprite ideation.
 - Computer Use / Chrome: use only when a task needs the user's logged-in browser state.
