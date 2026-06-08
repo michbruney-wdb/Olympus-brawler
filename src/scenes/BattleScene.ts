@@ -14,12 +14,14 @@ import {
   type KeyboardBindings
 } from "../systems/controls";
 import { chooseCpuControls } from "../systems/cpu";
+import { createBattleAvatar3D, type BattleAvatar3D } from "../rendering/avatar3d";
 import type { AnimationKey, AttackType, FighterConfig, FighterId, GameMode, RectLike, StageId } from "../types";
 
 interface Combatant {
   config: FighterConfig;
   sprite: Phaser.Physics.Arcade.Sprite;
   rimSprite: Phaser.GameObjects.Sprite;
+  avatar3d?: BattleAvatar3D;
   shadow: Phaser.GameObjects.Ellipse;
   depthShadow: Phaser.GameObjects.Ellipse;
   label: Phaser.GameObjects.Text;
@@ -239,12 +241,18 @@ export class BattleScene extends Phaser.Scene {
     sprite.setCollideWorldBounds(false);
     sprite.setMaxVelocity(620, 980);
     sprite.setDepth(10);
-    this.applyAvatarRender(sprite, config, 1);
+    this.applyAvatarRender(sprite, config, playerNumber);
     sprite.play(`${config.id}-idle`);
 
     const body = sprite.body as Phaser.Physics.Arcade.Body;
     body.setSize(74, 112);
     body.setOffset(83, 88);
+
+    const avatar3d = createBattleAvatar3D(this, config, playerNumber, x, y);
+    if (avatar3d) {
+      sprite.setVisible(false);
+      rimSprite.setVisible(false);
+    }
 
     const label = this.add
       .text(x, y - 95, `${config.name} ${isCpu ? "CPU" : playerNumber === 1 ? "P1" : "P2"}`, {
@@ -261,6 +269,7 @@ export class BattleScene extends Phaser.Scene {
       config,
       sprite,
       rimSprite,
+      avatar3d,
       shadow,
       depthShadow,
       label,
@@ -528,6 +537,7 @@ export class BattleScene extends Phaser.Scene {
     const airborne = !body.blocked.down;
     const shadowScale = airborne ? 0.7 : 1;
     const rimOffset = fighter.facing === 1 ? 5 : -5;
+    const visualAnimation = this.avatarAnimationFor(fighter, body, airborne);
 
     fighter.shadow.setPosition(fighter.sprite.x, fighter.sprite.y + 66);
     fighter.shadow.setScale(shadowScale, airborne ? 0.7 : 1);
@@ -551,7 +561,34 @@ export class BattleScene extends Phaser.Scene {
       this.applyAvatarRender(fighter.sprite, fighter.config, fighter.playerNumber);
     }
 
+    fighter.avatar3d?.update({
+      x: fighter.sprite.x,
+      y: fighter.sprite.y,
+      facing: fighter.facing,
+      animation: visualAnimation,
+      attack: fighter.attack,
+      airborne,
+      shielding: fighter.shielding,
+      stunned: fighter.stun > 0,
+      ultReady: fighter.ultMeter >= 100,
+      alpha: fighter.sprite.alpha,
+      timeMs: this.time.now
+    });
+
     this.updateUltimateAura(fighter);
+  }
+
+  private avatarAnimationFor(
+    fighter: Combatant,
+    body: Phaser.Physics.Arcade.Body,
+    airborne: boolean
+  ): AnimationKey {
+    if (fighter.attack === "ultimate") return "ult";
+    if (fighter.attack !== "idle") return fighter.attack;
+    if (fighter.stun > 0) return "hurt";
+    if (airborne) return "jump";
+    if (Math.abs(body.velocity.x) > 35) return "run";
+    return "idle";
   }
 
   private applyAvatarRender(
