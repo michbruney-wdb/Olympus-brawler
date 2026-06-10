@@ -180,22 +180,26 @@ export class BattleScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const beams = this.add.graphics().setDepth(-20);
 
-    this.add.rectangle(width / 2, height / 2, width, height, 0x040712, 0.18).setDepth(-26);
-    this.add.rectangle(width / 2, 84, width, 168, accent, 0.08).setDepth(-24).setBlendMode(Phaser.BlendModes.ADD);
-    this.add.rectangle(width / 2, height - 52, width, 104, 0x02040a, 0.42).setDepth(-4);
+    this.add.rectangle(width / 2, height / 2, width, height, 0x0b1020, 0.28).setDepth(-26);
+    this.add.rectangle(width / 2, 88, width, 176, accent, 0.045).setDepth(-24).setBlendMode(Phaser.BlendModes.ADD);
+    this.add.rectangle(width / 2, height - 58, width, 116, 0x02040a, 0.5).setDepth(-3);
+    this.add.rectangle(width / 2, height - 174, width, 170, 0x182139, 0.12).setDepth(-11);
 
-    beams.fillStyle(accent, 0.09);
-    beams.fillTriangle(110, 0, 245, 0, 390, height);
-    beams.fillTriangle(width - 120, 0, width - 282, 0, width - 430, height);
-    beams.fillStyle(0xffffff, 0.035);
-    beams.fillTriangle(width / 2 - 75, 0, width / 2 + 75, 0, width / 2 + 10, height);
+    beams.fillStyle(accent, 0.045);
+    beams.fillTriangle(126, 0, 234, 0, 396, height);
+    beams.fillTriangle(width - 116, 0, width - 250, 0, width - 438, height);
+    beams.fillStyle(0xffffff, 0.025);
+    beams.fillTriangle(width / 2 - 58, 0, width / 2 + 58, 0, width / 2 + 8, height);
 
-    const horizon = this.add.rectangle(width / 2, 454, width, 72, 0xffffff, 0.055).setDepth(-12);
+    const haze = this.add.ellipse(width / 2, 322, width * 0.86, 300, 0xffffff, 0.055).setDepth(-13);
+    haze.setBlendMode(Phaser.BlendModes.ADD);
+
+    const horizon = this.add.rectangle(width / 2, 454, width, 84, 0xffffff, 0.038).setDepth(-12);
     horizon.setBlendMode(Phaser.BlendModes.ADD);
 
     this.tweens.add({
       targets: horizon,
-      alpha: { from: 0.035, to: 0.075 },
+      alpha: { from: 0.026, to: 0.056 },
       duration: 2600,
       yoyo: true,
       repeat: -1,
@@ -206,17 +210,37 @@ export class BattleScene extends Phaser.Scene {
   private addPlatform(x: number, y: number, w: number, h: number, color: number, main: boolean): void {
     const centerX = x + w / 2;
     const centerY = y + h / 2;
-    const shadow = this.add.rectangle(centerX, centerY + 13, w + 18, h + 18, 0x02040a, main ? 0.48 : 0.34);
-    shadow.setDepth(2);
+    const radius = main ? 9 : 7;
+    const shadow = this.add.graphics().setDepth(2);
+    shadow.fillStyle(0x02040a, main ? 0.46 : 0.3);
+    shadow.fillRoundedRect(x - 12, y + 12, w + 24, h + 18, radius + 3);
 
-    const platform = this.add.rectangle(centerX, centerY, w, h, color, main ? 0.94 : 0.86);
-    platform.setDepth(4);
-    platform.setStrokeStyle(main ? 3 : 2, 0xf7efe1, main ? 0.86 : 0.5);
+    const surface = this.add.graphics().setDepth(5);
+    surface.fillStyle(this.mixHex(color, 0x141827, main ? 0.1 : 0.16), main ? 0.96 : 0.9);
+    surface.fillRoundedRect(x, y, w, h, radius);
+    surface.fillStyle(0xffffff, main ? 0.16 : 0.1);
+    surface.fillRoundedRect(x + 8, y + 4, w - 16, Math.max(3, h * 0.2), radius * 0.5);
+    surface.lineStyle(main ? 3 : 2, 0xf5ddb0, main ? 0.82 : 0.52);
+    surface.strokeRoundedRect(x, y, w, h, radius);
 
-    const highlight = this.add.rectangle(centerX, y + 4, w - 10, 4, 0xffffff, main ? 0.36 : 0.22);
-    highlight.setDepth(5);
+    if (main) {
+      const lip = this.add.graphics().setDepth(4);
+      lip.fillStyle(0x4c3f2a, 0.28);
+      lip.fillRoundedRect(x + 2, y + h - 4, w - 4, 10, 6);
+    }
+
+    const platform = this.add.rectangle(centerX, centerY, w, h, 0xffffff, 0);
     this.physics.add.existing(platform, true);
     this.platforms!.add(platform);
+  }
+
+  private mixHex(color: number, mixWith: number, amount: number): number {
+    const source = Phaser.Display.Color.IntegerToRGB(color);
+    const target = Phaser.Display.Color.IntegerToRGB(mixWith);
+    const r = Math.round(Phaser.Math.Linear(source.r, target.r, amount));
+    const g = Math.round(Phaser.Math.Linear(source.g, target.g, amount));
+    const b = Math.round(Phaser.Math.Linear(source.b, target.b, amount));
+    return Phaser.Display.Color.GetColor(r, g, b);
   }
 
   private createCombatant(
@@ -226,8 +250,8 @@ export class BattleScene extends Phaser.Scene {
     playerNumber: 1 | 2,
     isCpu: boolean
   ): Combatant {
-    const shadow = this.add.ellipse(x, y + 66, 110, 24, 0x02040a, 0.54).setDepth(7);
-    const depthShadow = this.add.ellipse(x - 5, y + 8, 78, 132, 0x02040a, 0.26).setDepth(8);
+    const shadow = this.add.ellipse(x, y + 66, 106, 22, 0x02040a, 0.44).setDepth(7);
+    const depthShadow = this.add.ellipse(x - 5, y + 8, 70, 126, 0x02040a, 0.18).setDepth(8);
     const rimSprite = this.add.sprite(x + 5, y - 2, `${config.id}-idle-1`);
     rimSprite.setDisplaySize(128, 148);
     rimSprite.setDepth(9);
