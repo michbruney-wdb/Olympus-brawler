@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { getStage } from "../data/stages";
-import { getStoryTrial, STORY_COMPLETE_LINES, type StoryLine, type StoryTrial } from "../data/story";
+import { getStoryTrial, STORY_COMPLETE_LINES, STORY_TRIALS, type StoryLine, type StoryTrial } from "../data/story";
 
 type StoryPhase = "intro" | "win" | "complete";
 
@@ -55,6 +55,7 @@ export class StoryScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    this.drawProgressRail();
     this.drawLine();
     this.enter = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
   }
@@ -78,8 +79,8 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private titleText(): string {
-    if (this.phase === "complete") return "First ladder complete";
-    return this.trial?.title ?? "Story ladder complete";
+    if (this.phase === "complete") return "Divine ladder complete";
+    return this.trial ? `${this.trial.title} (${this.trialIndex + 1}/${STORY_TRIALS.length})` : "Story ladder complete";
   }
 
   private advanceStory(): void {
@@ -115,19 +116,48 @@ export class StoryScene extends Phaser.Scene {
     this.registry.set("stage", trial.stage);
   }
 
+  private drawProgressRail(): void {
+    const { width } = this.scale;
+    const railWidth = 456;
+    const currentTrial = this.phase === "complete" ? STORY_TRIALS.length : this.trialIndex + 1;
+    const phaseProgress = this.phase === "win" ? 0.82 : 0.28;
+    const progress =
+      this.phase === "complete" ? 1 : Phaser.Math.Clamp((this.trialIndex + phaseProgress) / STORY_TRIALS.length, 0, 1);
+    const railX = width / 2 - railWidth / 2;
+
+    this.add.rectangle(width / 2, 172, railWidth, 9, 0x101522, 0.82).setStrokeStyle(1, 0xf0d48a, 0.35);
+    this.add
+      .rectangle(railX, 172, Math.max(8, railWidth * progress), 9, 0xf0d48a, 0.95)
+      .setOrigin(0, 0.5);
+    this.add
+      .text(width / 2, 194, `${currentTrial} of ${STORY_TRIALS.length} trials`, {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "14px",
+        color: "#d7deef"
+      })
+      .setOrigin(0.5);
+  }
+
   private drawLine(): void {
     const { width, height } = this.scale;
     const line = this.lines[this.lineIndex];
     this.lineObjects.forEach((item) => item.destroy());
     this.lineObjects = [];
 
-    const panel = this.add.rectangle(width / 2, height - 145, 930, 166, 0x101522, 0.9);
+    const panelWidth = Math.min(960, width - 140);
+    const panelHeight = 184;
+    const panelX = width / 2;
+    const panelY = height - 142;
+    const textX = panelX - panelWidth / 2 + 34;
+    const promptX = panelX + panelWidth / 2 - 108;
+
+    const panel = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x101522, 0.92);
     panel.setStrokeStyle(3, 0xf0d48a, 0.9);
     this.lineObjects.push(panel);
 
     this.lineObjects.push(
       this.add
-      .text(width / 2 - 425, height - 200, line.speaker, {
+      .text(textX, panelY - 70, line.speaker, {
         fontFamily: "Georgia, serif",
         fontSize: "28px",
         color: "#f0d48a"
@@ -137,23 +167,31 @@ export class StoryScene extends Phaser.Scene {
 
     this.lineObjects.push(
       this.add
-      .text(width / 2 - 425, height - 146, line.text, {
+      .text(textX, panelY - 42, line.text, {
         fontFamily: "Arial, sans-serif",
-        fontSize: "23px",
+        fontSize: "22px",
         color: "#f7efe1",
-        wordWrap: { width: 850 }
+        lineSpacing: 7,
+        wordWrap: { width: panelWidth - 68 }
       })
-      .setOrigin(0, 0.5)
+      .setOrigin(0, 0)
     );
 
     this.lineObjects.push(
       this.add
-      .text(width / 2 + 362, height - 82, "Enter", {
+      .text(promptX, panelY + 65, this.promptText(), {
         fontFamily: "Arial, sans-serif",
         fontSize: "18px",
         color: "#d7deef"
       })
       .setOrigin(0.5)
     );
+  }
+
+  private promptText(): string {
+    if (this.lineIndex < this.lines.length - 1) return `Enter: next ${this.lineIndex + 1}/${this.lines.length}`;
+    if (this.phase === "intro") return "Enter: fight";
+    if (this.phase === "win") return "Enter: continue";
+    return "Enter: mode select";
   }
 }

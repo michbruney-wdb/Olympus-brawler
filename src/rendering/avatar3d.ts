@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import * as THREE from "three";
+import { avatarFacingYaw } from "./avatar-facing";
 import type { AnimationKey, AttackType, FighterConfig } from "../types";
 
 const AVATAR_TEXTURE_SIZE = 320;
@@ -501,7 +502,7 @@ export class BattleAvatar3D {
     const run = state.animation === "run";
     const swing = run ? Math.sin(t * 11.5) : Math.sin(t * 2.3) * 0.12;
     const breathe = Math.sin(t * 2.4) * 0.018;
-    const facingTurn = state.facing === 1 ? -0.58 : 0.58;
+    const facingTurn = avatarFacingYaw(state.facing);
     const attackWindup = Math.sin(t * 16) * 0.18;
 
     this.rig.root.rotation.set(0, facingTurn, 0);
