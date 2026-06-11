@@ -427,6 +427,10 @@ export class BattleScene extends Phaser.Scene {
     const animation = attack === "ultimate" ? "ult" : attack;
     this.playFighterAnimation(fighter, animation);
 
+    if (attack === "heavy") {
+      this.heavyAttackSweep(fighter);
+    }
+
     if (attack === "special" || attack === "ultimate") {
       this.spawnProjectile(fighter, attack === "ultimate");
     }
@@ -951,6 +955,46 @@ export class BattleScene extends Phaser.Scene {
       onComplete: () => {
         slash.destroy();
         ring.destroy();
+      }
+    });
+  }
+
+  private heavyAttackSweep(fighter: Combatant): void {
+    const facing = fighter.attackFacing;
+    const slash = this.add.rectangle(
+      fighter.sprite.x + facing * 72,
+      fighter.sprite.y - 38,
+      138,
+      18,
+      fighter.config.accent,
+      0.92
+    );
+    slash.setDepth(31);
+    slash.setAngle(facing === 1 ? -18 : 18);
+    slash.setBlendMode(Phaser.BlendModes.ADD);
+
+    const edge = this.add.rectangle(
+      fighter.sprite.x + facing * 108,
+      fighter.sprite.y - 42,
+      48,
+      8,
+      0xffffff,
+      0.95
+    );
+    edge.setDepth(32);
+    edge.setAngle(facing === 1 ? -18 : 18);
+    edge.setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: [slash, edge],
+      x: `+=${facing * 34}`,
+      alpha: 0,
+      scaleX: 1.46,
+      duration: 320,
+      ease: "Quad.easeOut",
+      onComplete: () => {
+        slash.destroy();
+        edge.destroy();
       }
     });
   }
