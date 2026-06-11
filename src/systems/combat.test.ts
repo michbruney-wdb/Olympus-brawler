@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyShieldDamage,
+  attackFacingForInput,
   calculateKnockback,
   clamp,
   meleeRangeForAttack,
@@ -33,6 +34,17 @@ describe("combat helpers", () => {
   it("applies shield damage without going below zero", () => {
     expect(applyShieldDamage(100, 10)).toBe(70);
     expect(applyShieldDamage(8, 10)).toBe(0);
+  });
+
+  it("turns a standing attack toward the target", () => {
+    expect(attackFacingForInput({ currentFacing: 1, inputDirection: 0, selfX: 700, targetX: 500 })).toBe(-1);
+    expect(attackFacingForInput({ currentFacing: -1, inputDirection: 0, selfX: 500, targetX: 700 })).toBe(1);
+  });
+
+  it("lets held direction override target-facing attacks", () => {
+    expect(attackFacingForInput({ currentFacing: 1, inputDirection: -1, selfX: 500, targetX: 700 })).toBe(-1);
+    expect(attackFacingForInput({ currentFacing: -1, inputDirection: 1, selfX: 700, targetX: 500 })).toBe(1);
+    expect(attackFacingForInput({ currentFacing: -1, inputDirection: 0, selfX: 500, targetX: 500 })).toBe(-1);
   });
 
   it("resolves hit damage and meter gain", () => {

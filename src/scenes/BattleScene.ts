@@ -3,6 +3,7 @@ import { getFighter } from "../data/fighters";
 import { getStage } from "../data/stages";
 import {
   applyShieldDamage,
+  attackFacingForInput,
   meleeRangeForAttack,
   rectsOverlap,
   resolveHit
@@ -28,6 +29,7 @@ interface Combatant {
   playerNumber: 1 | 2;
   isCpu: boolean;
   facing: -1 | 1;
+  attackFacing: -1 | 1;
   damage: number;
   lives: number;
   shield: number;
@@ -45,6 +47,7 @@ interface Combatant {
 interface Projectile {
   owner: Combatant;
   body: Phaser.GameObjects.Arc;
+  facing: -1 | 1;
   velocityX: number;
   damage: number;
   knockback: number;
@@ -289,6 +292,8 @@ export class BattleScene extends Phaser.Scene {
       .setDepth(22)
       .setOrigin(0.5);
 
+    const initialFacing = playerNumber === 1 ? 1 : -1;
+
     return {
       config,
       sprite,
@@ -299,7 +304,8 @@ export class BattleScene extends Phaser.Scene {
       label,
       playerNumber,
       isCpu,
-      facing: playerNumber === 1 ? 1 : -1,
+      facing: initialFacing,
+      attackFacing: initialFacing,
       damage: 0,
       lives: 3,
       shield: 100,
@@ -362,7 +368,17 @@ export class BattleScene extends Phaser.Scene {
         this.dash(fighter);
       }
 
-      if (controls.attackPressed) this.startAttack(fighter, controls.attackPressed);
+      if (controls.attackPressed) {
+        fighter.facing =
+          controls.facing ??
+          attackFacingForInput({
+            currentFacing: fighter.facing,
+            inputDirection: direction,
+            selfX: fighter.sprite.x,
+            targetX: enemy.sprite.x
+          });
+        this.startAttack(fighter, controls.attackPressed);
+      }
     }
 
     if (fighter.attack !== "idle") {
@@ -403,6 +419,7 @@ export class BattleScene extends Phaser.Scene {
     if (attack === "ultimate" && fighter.ultMeter < 100) return;
 
     fighter.attack = attack;
+    fighter.attackFacing = fighter.facing;
     fighter.attackHit = false;
     fighter.attackTimer = attack === "quick" ? 12 : attack === "heavy" ? 22 : attack === "special" ? 20 : 38;
     fighter.cooldowns[attack] = attack === "quick" ? 18 : attack === "heavy" ? 38 : attack === "special" ? 58 : 230;
@@ -426,8 +443,9 @@ export class BattleScene extends Phaser.Scene {
 
     const attack = attacker.attack === "ultimate" ? "ultimate" : attacker.attack;
     const range = meleeRangeForAttack(attack);
+    const facing = attacker.attackFacing;
     const attackBox: RectLike = {
-      x: attacker.facing === 1 ? attacker.sprite.x + 26 : attacker.sprite.x - range - 26,
+      x: facing === 1 ? attacker.sprite.x + 26 : attacker.sprite.x - range - 26,
       y: attacker.sprite.y - 58,
       w: range,
       h: 84
@@ -437,11 +455,17 @@ export class BattleScene extends Phaser.Scene {
       attacker.attackHit = true;
       const damage = attack === "quick" ? attacker.config.quick : attack === "heavy" ? attacker.config.heavy : attacker.config.ultimate;
       const knockback = attack === "quick" ? 0.98 : attack === "heavy" ? attacker.config.knockback : attacker.config.knockback * 1.42;
-      this.applyHit(attacker, defender, damage, knockback);
+      this.applyHit(attacker, defender, damage, knockback, facing);
     }
   }
 
-  private applyHit(attacker: Combatant, defender: Combatant, damage: number, knockback: number): void {
+  private applyHit(
+    attacker: Combatant,
+    defender: Combatant,
+    damage: number,
+    knockback: number,
+    hitFacing: -1 | 1 = attacker.facing
+  ): void {
     if (defender.invuln > 0) return;
 
     if (defender.shielding && defender.shield > 0) {
@@ -461,7 +485,7 @@ export class BattleScene extends Phaser.Scene {
       currentDamage: defender.damage,
       attackDamage: damage,
       knockbackMultiplier: knockback,
-      facing: attacker.facing
+      facing: hitFacing
     });
     const defenderBody = defender.sprite.body as Phaser.Physics.Arcade.Body;
 
@@ -479,7 +503,8 @@ export class BattleScene extends Phaser.Scene {
 
   private spawnProjectile(owner: Combatant, ultimate: boolean): void {
     const radius = ultimate ? 20 : owner.config.projectile === "spear" ? 9 : 13;
-    const body = this.add.circle(owner.sprite.x + owner.facing * 72, owner.sprite.y - 36, radius, owner.config.accent, 0.96);
+    const facing = owner.attackFacing;
+    const body = this.add.circle(owner.sprite.x + facing * 72, owner.sprite.y - 36, radius, owner.config.accent, 0.96);
     body.setStrokeStyle(ultimate ? 3 : 1, 0xffffff, ultimate ? 0.92 : 0.35);
     body.setDepth(14);
     body.setBlendMode(Phaser.BlendModes.ADD);
@@ -487,14 +512,15 @@ export class BattleScene extends Phaser.Scene {
     this.projectiles.push({
       owner,
       body,
-      velocityX: owner.facing * (ultimate ? 620 : owner.config.projectile === "spear" ? 700 : 560),
+      facing,
+      velocityX: facing * (ultimate ? 620 : owner.config.projectile === "spear" ? 700 : 560),
       damage: ultimate ? owner.config.ultimate : owner.config.special,
       knockback: ultimate ? owner.config.knockback * 1.36 : owner.config.knockback,
       life: ultimate ? 94 : 74,
       ultimate
     });
 
-    this.burst(owner.sprite.x + owner.facing * 58, owner.sprite.y - 38, owner.config.accent, ultimate ? 22 : 10);
+    this.burst(owner.sprite.x + facing * 58, owner.sprite.y - 38, owner.config.accent, ultimate ? 22 : 10);
   }
 
   private updateProjectiles(): void {
@@ -512,7 +538,7 @@ export class BattleScene extends Phaser.Scene {
 
       const target = fighters.find((fighter) => fighter !== projectile.owner);
       if (target && rectsOverlap(this.projectileBounds(projectile), this.boundsOf(target))) {
-        this.applyHit(projectile.owner, target, projectile.damage, projectile.knockback);
+        this.applyHit(projectile.owner, target, projectile.damage, projectile.knockback, projectile.facing);
         projectile.body.destroy();
         this.projectiles.splice(i, 1);
         continue;
@@ -539,7 +565,8 @@ export class BattleScene extends Phaser.Scene {
   private updateAnimation(fighter: Combatant): void {
     const body = fighter.sprite.body as Phaser.Physics.Arcade.Body;
     const sprite = fighter.sprite;
-    sprite.setFlipX(fighter.facing === -1);
+    const visualFacing = this.visualFacingFor(fighter);
+    sprite.setFlipX(visualFacing === -1);
     sprite.setAlpha(fighter.invuln > 0 && Math.floor(this.time.now / 70) % 2 === 0 ? 0.62 : 1);
 
     if (fighter.attack !== "idle") return;
@@ -560,17 +587,18 @@ export class BattleScene extends Phaser.Scene {
     const body = fighter.sprite.body as Phaser.Physics.Arcade.Body;
     const airborne = !body.blocked.down;
     const shadowScale = airborne ? 0.7 : 1;
-    const rimOffset = fighter.facing === 1 ? 5 : -5;
+    const visualFacing = this.visualFacingFor(fighter);
+    const rimOffset = visualFacing === 1 ? 5 : -5;
     const visualAnimation = this.avatarAnimationFor(fighter, body, airborne);
 
     fighter.shadow.setPosition(fighter.sprite.x, fighter.sprite.y + 66);
     fighter.shadow.setScale(shadowScale, airborne ? 0.7 : 1);
     fighter.shadow.setAlpha(fighter.sprite.alpha * (airborne ? 0.28 : 0.48));
-    fighter.depthShadow.setPosition(fighter.sprite.x - fighter.facing * 6, fighter.sprite.y + 8);
+    fighter.depthShadow.setPosition(fighter.sprite.x - visualFacing * 6, fighter.sprite.y + 8);
     fighter.depthShadow.setScale(airborne ? 0.82 : 1, airborne ? 0.88 : 1);
     fighter.depthShadow.setAlpha(fighter.sprite.alpha * (airborne ? 0.14 : 0.25));
     fighter.rimSprite.setPosition(fighter.sprite.x + rimOffset, fighter.sprite.y - 2);
-    fighter.rimSprite.setFlipX(fighter.facing === -1);
+    fighter.rimSprite.setFlipX(visualFacing === -1);
     fighter.rimSprite.setAlpha(fighter.sprite.alpha * (fighter.ultMeter >= 100 ? 0.48 : 0.28));
     const rimPulse = 1 + Math.sin(this.time.now / 180) * (fighter.ultMeter >= 100 ? 0.025 : 0.01);
     fighter.rimSprite.setDisplaySize(128 * rimPulse, 148 * rimPulse);
@@ -588,7 +616,7 @@ export class BattleScene extends Phaser.Scene {
     fighter.avatar3d?.update({
       x: fighter.sprite.x,
       y: fighter.sprite.y,
-      facing: fighter.facing,
+      facing: visualFacing,
       animation: visualAnimation,
       attack: fighter.attack,
       airborne,
@@ -600,6 +628,10 @@ export class BattleScene extends Phaser.Scene {
     });
 
     this.updateUltimateAura(fighter);
+  }
+
+  private visualFacingFor(fighter: Combatant): -1 | 1 {
+    return fighter.attack === "idle" ? fighter.facing : fighter.attackFacing;
   }
 
   private avatarAnimationFor(
@@ -925,14 +957,14 @@ export class BattleScene extends Phaser.Scene {
 
   private projectileTrail(projectile: Projectile): void {
     const trail = this.add.rectangle(
-      projectile.body.x - Math.sign(projectile.velocityX) * 26,
+      projectile.body.x - projectile.facing * 26,
       projectile.body.y,
       projectile.ultimate ? 72 : 44,
       projectile.ultimate ? 7 : 4,
       projectile.owner.config.accent,
       projectile.ultimate ? 0.38 : 0.28
     );
-    trail.setAngle(projectile.velocityX > 0 ? 0 : 180);
+    trail.setAngle(projectile.facing === 1 ? 0 : 180);
     trail.setDepth(13);
     trail.setBlendMode(Phaser.BlendModes.ADD);
 

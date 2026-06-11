@@ -1,5 +1,8 @@
 import type { RectLike } from "../types";
 
+type Facing = -1 | 1;
+type Direction = -1 | 0 | 1;
+
 export interface HitResult {
   damage: number;
   knockbackX: number;
@@ -31,6 +34,18 @@ export function calculateKnockback(
 
 export function applyShieldDamage(shield: number, attackDamage: number): number {
   return clamp(shield - attackDamage * 3, 0, 100);
+}
+
+export function attackFacingForInput(params: {
+  currentFacing: Facing;
+  inputDirection: Direction;
+  selfX: number;
+  targetX: number;
+}): Facing {
+  if (params.inputDirection !== 0) return params.inputDirection;
+  if (params.targetX > params.selfX) return 1;
+  if (params.targetX < params.selfX) return -1;
+  return params.currentFacing;
 }
 
 export function resolveHit(params: {
