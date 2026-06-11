@@ -49,6 +49,7 @@ export class BattleAvatar3D {
   private readonly scene3d = new THREE.Scene();
   private readonly camera = new THREE.OrthographicCamera(-1.05, 1.05, 2.18, -0.28, 0.1, 40);
   private readonly rig: AvatarRig;
+  private disposed = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -120,10 +121,17 @@ export class BattleAvatar3D {
   }
 
   destroy(): void {
-    if (!this.image.scene) return;
+    if (this.disposed) return;
+    this.disposed = true;
 
-    this.image.destroy();
-    this.scene.textures.remove(this.textureKey);
+    if (this.image.scene) {
+      this.image.destroy();
+    }
+
+    if (this.scene.textures.exists(this.textureKey)) {
+      this.scene.textures.remove(this.textureKey);
+    }
+
     this.disposeObject(this.scene3d);
     this.renderer.dispose();
     this.renderer.forceContextLoss();
