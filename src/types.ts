@@ -39,6 +39,7 @@ export interface FighterConfig {
   heavy: number;
   special: number;
   ultimate: number;
+  ultimateName: string;
   knockback: number;
   projectile: "bolt" | "spear" | "wave" | "arrow" | "shadow" | "rock" | "blade" | "trick";
   storyRole: string;

@@ -26,6 +26,7 @@ export const FIGHTERS: Record<FighterId, FighterConfig> = {
     heavy: 18,
     special: 14,
     ultimate: 34,
+    ultimateName: "Storm Verdict",
     knockback: 1.12,
     projectile: "bolt",
     storyRole: "Host of the divine tournament and master of thunder."
@@ -44,6 +45,7 @@ export const FIGHTERS: Record<FighterId, FighterConfig> = {
     heavy: 16,
     special: 12,
     ultimate: 33,
+    ultimateName: "Aegis Reversal",
     knockback: 1.04,
     projectile: "spear",
     storyRole: "The first strategic trial, testing discipline over raw power."
@@ -62,6 +64,7 @@ export const FIGHTERS: Record<FighterId, FighterConfig> = {
     heavy: 22,
     special: 16,
     ultimate: 38,
+    ultimateName: "Warpath Cleave",
     knockback: 1.24,
     projectile: "blade",
     storyRole: "A pressure fighter who tests whether the champion can survive chaos."
@@ -80,6 +83,7 @@ export const FIGHTERS: Record<FighterId, FighterConfig> = {
     heavy: 18,
     special: 17,
     ultimate: 36,
+    ultimateName: "Tidal Rupture",
     knockback: 1.16,
     projectile: "wave",
     storyRole: "A stage-control rival who turns distance into pressure."
@@ -98,6 +102,7 @@ export const FIGHTERS: Record<FighterId, FighterConfig> = {
     heavy: 15,
     special: 15,
     ultimate: 31,
+    ultimateName: "Moonfall Volley",
     knockback: 1.02,
     projectile: "arrow",
     storyRole: "A mobile ranged fighter who punishes slow approaches."
@@ -116,6 +121,7 @@ export const FIGHTERS: Record<FighterId, FighterConfig> = {
     heavy: 20,
     special: 18,
     ultimate: 39,
+    ultimateName: "Underworld Chains",
     knockback: 1.2,
     projectile: "shadow",
     storyRole: "A disruptive boss-style rival with traps, status pressure, and dark reach."
@@ -134,6 +140,7 @@ export const FIGHTERS: Record<FighterId, FighterConfig> = {
     heavy: 24,
     special: 19,
     ultimate: 40,
+    ultimateName: "Twelve-Labor Quake",
     knockback: 1.28,
     projectile: "rock",
     storyRole: "A bruiser who forces close-range respect."
@@ -152,6 +159,7 @@ export const FIGHTERS: Record<FighterId, FighterConfig> = {
     heavy: 17,
     special: 13,
     ultimate: 32,
+    ultimateName: "Bright Spear Rush",
     knockback: 1.08,
     projectile: "spear",
     storyRole: "A fast duelist built around momentum and whiff punishment."
@@ -170,6 +178,7 @@ export const FIGHTERS: Record<FighterId, FighterConfig> = {
     heavy: 16,
     special: 14,
     ultimate: 30,
+    ultimateName: "Nobody's Gambit",
     knockback: 1.03,
     projectile: "trick",
     storyRole: "A tricky fighter who wins through feints, spacing, and awkward angles."

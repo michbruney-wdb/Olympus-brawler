@@ -377,7 +377,7 @@ export class BattleScene extends Phaser.Scene {
             selfX: fighter.sprite.x,
             targetX: enemy.sprite.x
           });
-        this.startAttack(fighter, controls.attackPressed);
+        this.startAttack(fighter, enemy, controls.attackPressed);
       }
     }
 
@@ -413,7 +413,7 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
-  private startAttack(fighter: Combatant, attack: AttackType): void {
+  private startAttack(fighter: Combatant, enemy: Combatant, attack: AttackType): void {
     if (fighter.cooldowns[attack] > 0 || fighter.attack !== "idle") return;
 
     if (attack === "ultimate" && fighter.ultMeter < 100) return;
@@ -427,26 +427,31 @@ export class BattleScene extends Phaser.Scene {
     const animation = attack === "ultimate" ? "ult" : attack;
     this.playFighterAnimation(fighter, animation);
 
+    if (attack === "ultimate") {
+      fighter.attackFacing = this.facingToward(fighter, enemy);
+      fighter.attackHit = true;
+      fighter.ultMeter = 0;
+      this.showUltimateBanner(fighter);
+      this.performUltimate(fighter, enemy);
+      fighter.ultMeter = 0;
+      this.screenFlash(fighter.config.accent, 0.16);
+      this.cameras.main.shake(170, 0.007);
+      return;
+    }
+
     if (attack === "heavy") {
       this.heavyAttackSweep(fighter);
     }
 
-    if (attack === "special" || attack === "ultimate") {
-      this.spawnProjectile(fighter, attack === "ultimate");
-    }
-
-    if (attack === "ultimate") {
-      fighter.ultMeter = 0;
-      this.screenFlash(fighter.config.accent, 0.16);
-      this.cameras.main.shake(160, 0.006);
+    if (attack === "special") {
+      this.spawnProjectile(fighter, false);
     }
   }
 
   private handleMelee(attacker: Combatant, defender: Combatant): void {
-    if (attacker.attackHit || attacker.attack === "idle" || attacker.attack === "special") return;
+    if (attacker.attackHit || attacker.attack === "idle" || attacker.attack === "special" || attacker.attack === "ultimate") return;
 
-    const attack = attacker.attack === "ultimate" ? "ultimate" : attacker.attack;
-    const range = meleeRangeForAttack(attack);
+    const range = meleeRangeForAttack(attacker.attack);
     const facing = attacker.attackFacing;
     const attackBox: RectLike = {
       x: facing === 1 ? attacker.sprite.x + 26 : attacker.sprite.x - range - 26,
@@ -457,8 +462,8 @@ export class BattleScene extends Phaser.Scene {
 
     if (rectsOverlap(attackBox, this.boundsOf(defender))) {
       attacker.attackHit = true;
-      const damage = attack === "quick" ? attacker.config.quick : attack === "heavy" ? attacker.config.heavy : attacker.config.ultimate;
-      const knockback = attack === "quick" ? 0.98 : attack === "heavy" ? attacker.config.knockback : attacker.config.knockback * 1.42;
+      const damage = attacker.attack === "quick" ? attacker.config.quick : attacker.config.heavy;
+      const knockback = attacker.attack === "quick" ? 0.98 : attacker.config.knockback;
       this.applyHit(attacker, defender, damage, knockback, facing);
     }
   }
@@ -503,6 +508,374 @@ export class BattleScene extends Phaser.Scene {
     this.burst(defender.sprite.x, defender.sprite.y - 28, attacker.config.accent, damage >= 18 ? 22 : 14);
     this.impactFlash(defender.sprite.x, defender.sprite.y - 30, attacker.config.accent, damage >= 18);
     this.cameras.main.shake(damage >= 18 ? 130 : 80, damage >= 18 ? 0.007 : 0.004);
+  }
+
+  private performUltimate(attacker: Combatant, defender: Combatant): void {
+    const facing = this.facingToward(attacker, defender);
+    attacker.attackFacing = facing;
+
+    switch (attacker.config.id) {
+      case "zeus":
+        this.ultimateLightningJudgment(attacker, defender, facing);
+        break;
+      case "athena":
+        this.ultimateAegisReversal(attacker, defender, facing);
+        break;
+      case "ares":
+        this.ultimateWarpathCleave(attacker, defender);
+        break;
+      case "poseidon":
+        this.ultimateTidalRupture(attacker, defender, facing);
+        break;
+      case "artemis":
+        this.ultimateMoonfallVolley(attacker, defender, facing);
+        break;
+      case "hades":
+        this.ultimateUnderworldChains(attacker, defender, facing);
+        break;
+      case "heracles":
+        this.ultimateLaborQuake(attacker, defender, facing);
+        break;
+      case "achilles":
+        this.ultimateBrightSpearRush(attacker, defender, facing);
+        break;
+      case "odysseus":
+        this.ultimateNobodysGambit(attacker, defender);
+        break;
+    }
+  }
+
+  private ultimateLightningJudgment(attacker: Combatant, defender: Combatant, facing: -1 | 1): void {
+    [-58, 0, 58].forEach((offset, index) => {
+      const bolt = this.add.rectangle(defender.sprite.x + offset, 232, index === 1 ? 16 : 10, 470, attacker.config.accent, 0.86);
+      const core = this.add.rectangle(defender.sprite.x + offset, 232, index === 1 ? 5 : 3, 470, 0xffffff, 0.94);
+      bolt.setDepth(34).setBlendMode(Phaser.BlendModes.ADD);
+      core.setDepth(35).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: [bolt, core],
+        alpha: 0,
+        scaleY: 1.24,
+        duration: 330,
+        delay: index * 45,
+        ease: "Quad.easeOut",
+        onComplete: () => {
+          bolt.destroy();
+          core.destroy();
+        }
+      });
+    });
+
+    this.burst(defender.sprite.x, defender.sprite.y - 36, attacker.config.accent, 30);
+    this.applyUltimateHit(attacker, defender, 1, 1.45, facing);
+  }
+
+  private ultimateAegisReversal(attacker: Combatant, defender: Combatant, facing: -1 | 1): void {
+    attacker.shield = 100;
+    attacker.invuln = Math.max(attacker.invuln, 52);
+
+    const ring = this.add.circle(attacker.sprite.x, attacker.sprite.y - 20, 68).setStrokeStyle(8, attacker.config.accent, 0.92);
+    const flare = this.add.circle(attacker.sprite.x, attacker.sprite.y - 20, 42, 0xffffff, 0.2);
+    ring.setDepth(33).setBlendMode(Phaser.BlendModes.ADD);
+    flare.setDepth(32).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: [ring, flare],
+      alpha: 0,
+      scale: 2.55,
+      duration: 430,
+      ease: "Quad.easeOut",
+      onComplete: () => {
+        ring.destroy();
+        flare.destroy();
+      }
+    });
+
+    if (Phaser.Math.Distance.Between(attacker.sprite.x, attacker.sprite.y, defender.sprite.x, defender.sprite.y) <= 340) {
+      this.applyUltimateHit(attacker, defender, 0.86, 1.32, facing);
+    }
+  }
+
+  private ultimateWarpathCleave(attacker: Combatant, defender: Combatant): void {
+    const facing = attacker.attackFacing;
+    const hitbox = this.frontHitbox(attacker, 410, 166, 38, -94);
+    const slash = this.add.rectangle(
+      facing === 1 ? hitbox.x + hitbox.w * 0.52 : hitbox.x + hitbox.w * 0.48,
+      hitbox.y + 68,
+      420,
+      30,
+      attacker.config.accent,
+      0.92
+    );
+    const edge = this.add.rectangle(slash.x + facing * 70, slash.y - 8, 170, 8, 0xffffff, 0.85);
+    slash.setAngle(facing === 1 ? -12 : 12).setDepth(34).setBlendMode(Phaser.BlendModes.ADD);
+    edge.setAngle(facing === 1 ? -12 : 12).setDepth(35).setBlendMode(Phaser.BlendModes.ADD);
+
+    const body = attacker.sprite.body as Phaser.Physics.Arcade.Body;
+    body.setVelocityX(facing * 520);
+
+    this.tweens.add({
+      targets: [slash, edge],
+      x: `+=${facing * 88}`,
+      alpha: 0,
+      scaleX: 1.3,
+      duration: 360,
+      ease: "Quad.easeOut",
+      onComplete: () => {
+        slash.destroy();
+        edge.destroy();
+      }
+    });
+
+    if (rectsOverlap(hitbox, this.boundsOf(defender))) {
+      this.applyUltimateHit(attacker, defender, 1.1, 1.55, facing);
+    }
+  }
+
+  private ultimateTidalRupture(attacker: Combatant, defender: Combatant, facing: -1 | 1): void {
+    for (let i = 0; i < 4; i += 1) {
+      const wave = this.add.ellipse(attacker.sprite.x + facing * (110 + i * 126), ARENA.y - 16, 170, 58, attacker.config.accent, 0.3);
+      const crest = this.add.rectangle(attacker.sprite.x + facing * (110 + i * 126), ARENA.y - 48, 132, 10, 0xffffff, 0.7);
+      wave.setDepth(31).setBlendMode(Phaser.BlendModes.ADD);
+      crest.setDepth(32).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: [wave, crest],
+        y: "-=34",
+        alpha: 0,
+        scaleX: 1.35,
+        duration: 420,
+        delay: i * 55,
+        ease: "Sine.easeOut",
+        onComplete: () => {
+          wave.destroy();
+          crest.destroy();
+        }
+      });
+    }
+
+    if (defender.sprite.y > 210) {
+      this.applyUltimateHit(attacker, defender, 0.98, 1.4, facing);
+    }
+  }
+
+  private ultimateMoonfallVolley(attacker: Combatant, defender: Combatant, facing: -1 | 1): void {
+    [-96, -48, 0, 48, 96].forEach((offset, index) => {
+      const x = defender.sprite.x + offset;
+      const arrow = this.add.rectangle(x, -48, 7, 136, attacker.config.accent, 0.86);
+      const head = this.add.triangle(x, 26, 0, 0, 18, 0, 9, 24, 0xffffff, 0.86);
+      arrow.setAngle(10 * facing).setDepth(34).setBlendMode(Phaser.BlendModes.ADD);
+      head.setAngle(10 * facing).setDepth(35).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: [arrow, head],
+        y: defender.sprite.y - 44 + Math.abs(offset) * 0.12,
+        alpha: 0,
+        duration: 430,
+        delay: index * 42,
+        ease: "Quad.easeIn",
+        onComplete: () => {
+          arrow.destroy();
+          head.destroy();
+        }
+      });
+    });
+
+    this.applyUltimateHit(attacker, defender, 0.92, 1.3, facing);
+  }
+
+  private ultimateUnderworldChains(attacker: Combatant, defender: Combatant, facing: -1 | 1): void {
+    const ring = this.add.circle(defender.sprite.x, defender.sprite.y - 24, 72).setStrokeStyle(6, attacker.config.accent, 0.88);
+    const snare = this.add.circle(defender.sprite.x, defender.sprite.y - 24, 40).setStrokeStyle(4, 0xffffff, 0.58);
+    ring.setDepth(34).setBlendMode(Phaser.BlendModes.ADD);
+    snare.setDepth(35).setBlendMode(Phaser.BlendModes.ADD);
+
+    for (let i = 0; i < 4; i += 1) {
+      const chain = this.add.rectangle(
+        Phaser.Math.Linear(attacker.sprite.x, defender.sprite.x, 0.35 + i * 0.12),
+        Phaser.Math.Linear(attacker.sprite.y - 42, defender.sprite.y - 30, 0.35 + i * 0.12),
+        74,
+        7,
+        i % 2 === 0 ? attacker.config.accent : 0xffffff,
+        0.58
+      );
+      chain.setAngle(facing === 1 ? -18 : 18).setDepth(33).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: chain,
+        alpha: 0,
+        scaleX: 0.2,
+        duration: 380,
+        delay: i * 42,
+        onComplete: () => chain.destroy()
+      });
+    }
+
+    this.tweens.add({
+      targets: [ring, snare],
+      alpha: 0,
+      scale: 1.55,
+      duration: 430,
+      ease: "Quad.easeOut",
+      onComplete: () => {
+        ring.destroy();
+        snare.destroy();
+      }
+    });
+
+    const defenderBody = defender.sprite.body as Phaser.Physics.Arcade.Body;
+    defenderBody.setVelocityX(-facing * 160);
+    defender.stun = Math.max(defender.stun, 44);
+    this.applyUltimateHit(attacker, defender, 0.96, 1.34, facing);
+  }
+
+  private ultimateLaborQuake(attacker: Combatant, defender: Combatant, facing: -1 | 1): void {
+    [120, 260, 410].forEach((radius, index) => {
+      const ring = this.add.ellipse(attacker.sprite.x, ARENA.y + 3, radius, 28, attacker.config.accent, 0.18);
+      ring.setStrokeStyle(5, index === 2 ? 0xffffff : attacker.config.accent, index === 2 ? 0.42 : 0.6);
+      ring.setDepth(30).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: ring,
+        alpha: 0,
+        scaleX: 1.55,
+        scaleY: 2.1,
+        duration: 420 + index * 70,
+        ease: "Quad.easeOut",
+        onComplete: () => ring.destroy()
+      });
+    });
+
+    const closeEnough = Math.abs(defender.sprite.x - attacker.sprite.x) <= 520 && defender.sprite.y > 215;
+    if (closeEnough) {
+      this.applyUltimateHit(attacker, defender, 1.18, 1.68, facing);
+    }
+  }
+
+  private ultimateBrightSpearRush(attacker: Combatant, defender: Combatant, facing: -1 | 1): void {
+    attacker.invuln = Math.max(attacker.invuln, 34);
+
+    const startX = attacker.sprite.x;
+    const streak = this.add.rectangle(
+      Phaser.Math.Linear(startX, defender.sprite.x, 0.5),
+      attacker.sprite.y - 34,
+      Math.max(180, Math.abs(defender.sprite.x - startX) + 132),
+      12,
+      attacker.config.accent,
+      0.72
+    );
+    const spear = this.add.rectangle(defender.sprite.x - facing * 48, defender.sprite.y - 38, 150, 8, 0xffffff, 0.9);
+    streak.setAngle(facing === 1 ? -4 : 4).setDepth(34).setBlendMode(Phaser.BlendModes.ADD);
+    spear.setAngle(facing === 1 ? -4 : 4).setDepth(35).setBlendMode(Phaser.BlendModes.ADD);
+
+    const body = attacker.sprite.body as Phaser.Physics.Arcade.Body;
+    body.setVelocityX(facing * 760);
+
+    this.tweens.add({
+      targets: [streak, spear],
+      alpha: 0,
+      scaleX: 0.3,
+      duration: 310,
+      ease: "Quad.easeOut",
+      onComplete: () => {
+        streak.destroy();
+        spear.destroy();
+      }
+    });
+
+    this.applyUltimateHit(attacker, defender, 0.96, 1.36, facing);
+  }
+
+  private ultimateNobodysGambit(attacker: Combatant, defender: Combatant): void {
+    const oldX = attacker.sprite.x;
+    const oldY = attacker.sprite.y;
+    const facing = this.facingToward(attacker, defender);
+    const newX = Phaser.Math.Clamp(defender.sprite.x - facing * 86, ARENA.x + 42, ARENA.x + ARENA.w - 42);
+    const body = attacker.sprite.body as Phaser.Physics.Arcade.Body;
+    const decoy = this.add.sprite(oldX, oldY, `${attacker.config.id}-idle-1`);
+
+    decoy.setDisplaySize(120, 140);
+    decoy.setDepth(11);
+    decoy.setTint(attacker.config.accent);
+    decoy.setAlpha(0.58);
+    decoy.setFlipX(attacker.facing === -1);
+    decoy.setBlendMode(Phaser.BlendModes.ADD);
+
+    attacker.sprite.setPosition(newX, defender.sprite.y);
+    body.setVelocity(0, -80);
+    attacker.facing = facing;
+    attacker.attackFacing = facing;
+    attacker.invuln = Math.max(attacker.invuln, 46);
+
+    const flash = this.add.circle(attacker.sprite.x, attacker.sprite.y - 32, 58, attacker.config.accent, 0.3);
+    flash.setDepth(32).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: [decoy, flash],
+      alpha: 0,
+      scale: 1.45,
+      duration: 410,
+      ease: "Quad.easeOut",
+      onComplete: () => {
+        decoy.destroy();
+        flash.destroy();
+      }
+    });
+
+    defender.stun = Math.max(defender.stun, 30);
+    this.applyUltimateHit(attacker, defender, 0.8, 1.14, facing);
+  }
+
+  private applyUltimateHit(
+    attacker: Combatant,
+    defender: Combatant,
+    damageScale: number,
+    knockbackScale: number,
+    hitFacing: -1 | 1
+  ): void {
+    const previousInvuln = defender.invuln;
+    defender.invuln = 0;
+    this.applyHit(
+      attacker,
+      defender,
+      Math.round(attacker.config.ultimate * damageScale),
+      attacker.config.knockback * knockbackScale,
+      hitFacing
+    );
+    defender.invuln = Math.max(defender.invuln, previousInvuln);
+  }
+
+  private showUltimateBanner(fighter: Combatant): void {
+    const label = `${fighter.config.name}: ${fighter.config.ultimateName}`;
+    const banner = this.add.text(this.scale.width / 2, 112, label, {
+      fontFamily: "Georgia, serif",
+      fontSize: "34px",
+      color: "#fff5d6",
+      stroke: "#060812",
+      strokeThickness: 6,
+      backgroundColor: "rgba(8, 10, 18, 0.5)",
+      padding: { x: 18, y: 8 }
+    });
+
+    banner.setOrigin(0.5);
+    banner.setDepth(88);
+    banner.setColor(fighter.config.portraitColor);
+    this.tweens.add({
+      targets: banner,
+      y: 86,
+      alpha: 0,
+      delay: 560,
+      duration: 520,
+      ease: "Quad.easeIn",
+      onComplete: () => banner.destroy()
+    });
+  }
+
+  private facingToward(attacker: Combatant, defender: Combatant): -1 | 1 {
+    return attacker.sprite.x <= defender.sprite.x ? 1 : -1;
+  }
+
+  private frontHitbox(fighter: Combatant, width: number, height: number, forwardOffset: number, yOffset: number): RectLike {
+    const facing = fighter.attackFacing;
+    return {
+      x: facing === 1 ? fighter.sprite.x + forwardOffset : fighter.sprite.x - width - forwardOffset,
+      y: fighter.sprite.y + yOffset,
+      w: width,
+      h: height
+    };
   }
 
   private spawnProjectile(owner: Combatant, ultimate: boolean): void {
