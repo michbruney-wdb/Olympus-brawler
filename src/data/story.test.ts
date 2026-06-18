@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { FIGHTER_IDS } from "./fighters";
-import { getStoryTrial, STORY_COMPLETE_LINES, STORY_TRIALS } from "./story";
+import {
+  getStoryTrial,
+  resolveStoryOpponentFighter,
+  resolveStoryPlayerFighter,
+  STORY_COMPLETE_LINES,
+  STORY_TRIALS
+} from "./story";
 import { STAGE_IDS } from "./stages";
 
 describe("story ladder", () => {
@@ -34,5 +40,18 @@ describe("story ladder", () => {
 
   it("returns undefined when the ladder is complete", () => {
     expect(getStoryTrial(STORY_TRIALS.length)).toBeUndefined();
+  });
+
+  it("can run the story ladder with any selected player fighter", () => {
+    STORY_TRIALS.forEach((trial) => {
+      FIGHTER_IDS.forEach((fighterId) => {
+        const playerFighter = resolveStoryPlayerFighter(trial, fighterId);
+        const opponentFighter = resolveStoryOpponentFighter(trial, playerFighter);
+
+        expect(playerFighter).toBe(fighterId);
+        expect(FIGHTER_IDS).toContain(opponentFighter);
+        expect(opponentFighter).not.toBe(playerFighter);
+      });
+    });
   });
 });

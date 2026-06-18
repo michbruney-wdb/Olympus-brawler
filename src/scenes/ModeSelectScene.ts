@@ -17,7 +17,7 @@ export class ModeSelectScene extends MenuSceneBase {
     this.drawBackdrop("stage-olympus", 0.48);
     this.addTitle("Choose Mode", "Story, practice, or local rivalry");
     this.addMenuOptions(OPTIONS.map((option) => option.label), 252);
-    this.addFooter("Story opens with Zeus and Athena. PvP uses shared keyboard controls.");
+    this.addFooter("Story and battle modes begin with fighter selection.");
     this.createMenuInput();
   }
 
@@ -28,7 +28,7 @@ export class ModeSelectScene extends MenuSceneBase {
 
       if (option.mode === "story") {
         this.registry.set("storyTrialIndex", 0);
-        this.scene.start("StoryScene", { phase: "intro", trialIndex: 0 });
+        this.scene.start("FighterSelectScene");
         return;
       }
 

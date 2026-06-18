@@ -1,6 +1,16 @@
 import Phaser from "phaser";
+import { getFighter } from "../data/fighters";
 import { getStage } from "../data/stages";
-import { getStoryTrial, STORY_COMPLETE_LINES, STORY_TRIALS, type StoryLine, type StoryTrial } from "../data/story";
+import {
+  getStoryTrial,
+  resolveStoryOpponentFighter,
+  resolveStoryPlayerFighter,
+  STORY_COMPLETE_LINES,
+  STORY_TRIALS,
+  type StoryLine,
+  type StoryTrial
+} from "../data/story";
+import type { FighterId } from "../types";
 
 type StoryPhase = "intro" | "win" | "complete";
 
@@ -75,7 +85,13 @@ export class StoryScene extends Phaser.Scene {
 
   private getTrialLines(): StoryLine[] {
     if (!this.trial) return STORY_COMPLETE_LINES;
-    return this.phase === "win" ? this.trial.winLines : this.trial.introLines;
+    const playerFighter = this.selectedStoryPlayerFighter(this.trial);
+
+    if (playerFighter === this.trial.playerFighter) {
+      return this.phase === "win" ? this.trial.winLines : this.trial.introLines;
+    }
+
+    return this.dynamicTrialLines(this.trial, playerFighter);
   }
 
   private titleText(): string {
@@ -108,12 +124,53 @@ export class StoryScene extends Phaser.Scene {
   }
 
   private applyTrialToRegistry(trial: StoryTrial): void {
+    const playerFighter = this.selectedStoryPlayerFighter(trial);
+    const opponentFighter = resolveStoryOpponentFighter(trial, playerFighter);
+
     this.registry.set("mode", "story");
     this.registry.set("storyTrialIndex", this.trialIndex);
     this.registry.set("storyTrialTitle", trial.title);
-    this.registry.set("playerFighter", trial.playerFighter);
-    this.registry.set("opponentFighter", trial.opponentFighter);
+    this.registry.set("playerFighter", playerFighter);
+    this.registry.set("opponentFighter", opponentFighter);
     this.registry.set("stage", trial.stage);
+  }
+
+  private selectedStoryPlayerFighter(trial: StoryTrial): FighterId {
+    return resolveStoryPlayerFighter(trial, this.registry.get("storyPlayerFighter") as FighterId | undefined);
+  }
+
+  private dynamicTrialLines(trial: StoryTrial, playerFighter: FighterId): StoryLine[] {
+    const player = getFighter(playerFighter);
+    const opponent = getFighter(resolveStoryOpponentFighter(trial, playerFighter));
+    const stage = getStage(trial.stage);
+
+    if (this.phase === "win") {
+      return [
+        {
+          speaker: opponent.name,
+          text: `${player.name}, the ladder moves with your answer. The next challenger will not be gentler.`
+        },
+        {
+          speaker: "Athena",
+          text: `The trial records a new path for ${player.epithet}. Continue.`
+        }
+      ];
+    }
+
+    return [
+      {
+        speaker: "Zeus",
+        text: `${player.name}, take your place. ${opponent.name} waits in ${stage.name}.`
+      },
+      {
+        speaker: opponent.name,
+        text: `${player.epithet} or not, this trial only opens for a champion who can survive it.`
+      },
+      {
+        speaker: player.name,
+        text: `Then let ${trial.title.replace(/^Trial \d+: /, "").toLowerCase()} begin.`
+      }
+    ];
   }
 
   private drawProgressRail(): void {

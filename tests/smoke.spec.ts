@@ -127,6 +127,159 @@ test("cleans up 3D avatars across story fights through Achilles", async ({ page 
   expect(errors).toEqual([]);
 });
 
+test("fighter select supports story champions and non-default CPU rivals", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  const activeScenes = () =>
+    page.evaluate(() => {
+      const game = (window as Window & { __PHASER_GAME__?: { scene?: { getScenes?: (active?: boolean) => Array<{ scene: { key: string } }> } } })
+        .__PHASER_GAME__;
+      return game?.scene?.getScenes?.(true).map((scene) => scene.scene.key) ?? [];
+    });
+
+  await page.goto("/");
+  await expect(page.locator("canvas")).toBeVisible();
+  await page.locator("canvas").click();
+  await expect.poll(activeScenes).toContain("MainMenuScene");
+
+  await page.evaluate(() => {
+    const game = (window as Window & {
+      __PHASER_GAME__?: {
+        registry: { set: (key: string, value: unknown) => void };
+        scene: {
+          getScenes: (active?: boolean) => Array<{ scene: { key: string } }>;
+          start: (key: string) => void;
+          stop: (key: string) => void;
+        };
+      };
+    }).__PHASER_GAME__;
+    if (!game) throw new Error("Phaser game debug handle is not available.");
+
+    game.registry.set("mode", "story");
+    game.scene.getScenes(true).forEach((scene) => game.scene.stop(scene.scene.key));
+    game.scene.start("FighterSelectScene");
+  });
+
+  await expect.poll(activeScenes).toContain("FighterSelectScene");
+  await page.evaluate((selectedIndex) => {
+    const game = (window as Window & { __PHASER_GAME__?: { scene: { getScene: (key: string) => unknown } } }).__PHASER_GAME__;
+    const scene = game?.scene.getScene("FighterSelectScene") as
+      | {
+          selectedIndex: number;
+          selectCurrentFighter: () => void;
+        }
+      | undefined;
+    if (!scene) throw new Error("FighterSelectScene is not available.");
+
+    scene.selectedIndex = selectedIndex;
+    scene.selectCurrentFighter();
+  }, FIGHTER_IDS.indexOf("heracles"));
+  await expect.poll(activeScenes).toContain("StoryScene");
+
+  await page.evaluate(() => {
+    const game = (window as Window & { __PHASER_GAME__?: { scene: { getScene: (key: string) => unknown } } }).__PHASER_GAME__;
+    const scene = game?.scene.getScene("StoryScene") as { advanceStory?: () => void } | undefined;
+    scene?.advanceStory?.();
+  });
+
+  await expect.poll(activeScenes).toContain("BattleScene");
+
+  const storyBattle = await page.evaluate(() => {
+    const game = (window as Window & { __PHASER_GAME__?: { scene: { getScene: (key: string) => unknown } } }).__PHASER_GAME__;
+    const scene = game?.scene.getScene("BattleScene") as
+      | {
+          player?: { config: { id: string } };
+          opponent?: { config: { id: string } };
+        }
+      | undefined;
+
+    return {
+      playerFighter: scene?.player?.config.id,
+      opponentFighter: scene?.opponent?.config.id
+    };
+  });
+
+  expect(storyBattle.playerFighter).toBe("heracles");
+  expect(storyBattle.opponentFighter).not.toBe("heracles");
+
+  await page.evaluate(() => {
+    const game = (window as Window & {
+      __PHASER_GAME__?: {
+        registry: { set: (key: string, value: unknown) => void };
+        scene: {
+          getScenes: (active?: boolean) => Array<{ scene: { key: string } }>;
+          start: (key: string) => void;
+          stop: (key: string) => void;
+        };
+      };
+    }).__PHASER_GAME__;
+    if (!game) throw new Error("Phaser game debug handle is not available.");
+
+    game.registry.set("mode", "pvc");
+    game.registry.set("playerFighter", "zeus");
+    game.scene.getScenes(true).forEach((scene) => game.scene.stop(scene.scene.key));
+    game.scene.start("FighterSelectScene");
+  });
+
+  await expect.poll(activeScenes).toContain("FighterSelectScene");
+  await page.evaluate(() => {
+    const game = (window as Window & { __PHASER_GAME__?: { scene: { getScene: (key: string) => unknown } } }).__PHASER_GAME__;
+    const scene = game?.scene.getScene("FighterSelectScene") as { selectCurrentFighter?: () => void } | undefined;
+    scene?.selectCurrentFighter?.();
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const game = (window as Window & {
+          __PHASER_GAME__?: {
+            registry: { get: (key: string) => unknown };
+            scene: { getScene: (key: string) => unknown };
+          };
+        }).__PHASER_GAME__;
+        const scene = game?.scene.getScene("FighterSelectScene") as { step?: string } | undefined;
+
+        return {
+          playerFighter: game?.registry.get("playerFighter"),
+          step: scene?.step
+        };
+      })
+    )
+    .toEqual({ playerFighter: "zeus", step: "opponent" });
+  await page.evaluate((selectedIndex) => {
+    const game = (window as Window & { __PHASER_GAME__?: { scene: { getScene: (key: string) => unknown } } }).__PHASER_GAME__;
+    const scene = game?.scene.getScene("FighterSelectScene") as
+      | {
+          selectedIndex: number;
+          selectCurrentFighter: () => void;
+        }
+      | undefined;
+    if (!scene) throw new Error("FighterSelectScene is not available.");
+
+    scene.selectedIndex = selectedIndex;
+    scene.selectCurrentFighter();
+  }, FIGHTER_IDS.indexOf("poseidon"));
+  await expect.poll(activeScenes).toContain("StageSelectScene");
+
+  const cpuSelection = await page.evaluate(() => {
+    const game = (window as Window & {
+      __PHASER_GAME__?: {
+        registry: { get: (key: string) => unknown };
+      };
+    }).__PHASER_GAME__;
+
+    return {
+      playerFighter: game?.registry.get("playerFighter"),
+      opponentFighter: game?.registry.get("opponentFighter")
+    };
+  });
+
+  expect(cpuSelection.playerFighter).toBe("zeus");
+  expect(cpuSelection.opponentFighter).toBe("poseidon");
+  expect(errors).toEqual([]);
+});
+
 test("each fighter can fire a unique ultimate without console errors", async ({ page }) => {
   const errors: string[] = [];
   page.on("console", (message) => {

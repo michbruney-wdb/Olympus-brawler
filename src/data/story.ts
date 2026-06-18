@@ -396,3 +396,11 @@ export const STORY_COMPLETE_LINES: StoryLine[] = [
 export function getStoryTrial(index: number): StoryTrial | undefined {
   return STORY_TRIALS[index];
 }
+
+export function resolveStoryPlayerFighter(trial: StoryTrial, selectedPlayer?: FighterId): FighterId {
+  return selectedPlayer ?? trial.playerFighter;
+}
+
+export function resolveStoryOpponentFighter(trial: StoryTrial, playerFighter: FighterId): FighterId {
+  return trial.opponentFighter === playerFighter ? trial.playerFighter : trial.opponentFighter;
+}
